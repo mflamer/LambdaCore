@@ -11,6 +11,7 @@
 #define PAT_ALU			1
 #define PAT_JMPCLOS		0
 #define PAT_LDI			4
+#define PAT_END			3
 
 #define LIT_MASK		0x7FFFFFFF
 #define PTRN_MASK		0xE0000000
@@ -60,7 +61,8 @@
 #define		LET		0x20000120		
 #define		ELET	0x20000060			
 #define		TEMP	0x2000F920	
-#define		UPDT	0x20000100			
+#define		UPDT	0x20000100	
+#define		END		0x60000000
 //#define	JMP			
 //#define	IF			
 //#define	EQ			
@@ -71,7 +73,7 @@
 //#define	GTE			
 //#define	ABV			
 //#define	BEL			
-#define 	ADD		0x3C001100		
+#define 	ADD		0x3C0C1100		
 //#define	SUB		
 //#define	AND     
 //#define	OR		
@@ -108,7 +110,7 @@ public:
 	void					Reset();
 	void					LoadRAM(std::string file);
 	void					Run(bool printState);
-	void					Step(bool printState);
+	bool					Step(bool printState);
 
 	void					Disassemble();
 	
@@ -121,7 +123,9 @@ public:
 
 	int A;					// accumulator
 	unsigned short PC;		// program counter
+	unsigned short _PC;      
 	unsigned short E;		// environment 
+	unsigned short _E;
 	unsigned short N;		// next allocation address
 	unsigned char arg_TOS;  // top of arg stack 
 	unsigned char ret_TOS;  // top of ret stack 
@@ -130,12 +134,14 @@ public:
 
 	char DB;		// debrujin index
 	short FA;		// frame address
-	bool RAMReading;
+	short _FA;
+
+	bool RAM_R;
 
 	bool A_stall;		//The processor must stall when searching through envs
 	bool F_stall;		//The processor must stall when setting a new env
 
-
+	unsigned int link; 
 	
 
 };

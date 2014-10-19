@@ -11,6 +11,7 @@ void PrintInst(unsigned int inst, unsigned short PC)
 	case PAT_JMPCLOS:
 		std::cout << PC << ": \t" << "CLOS " << (inst & A_CODE_MASK) << "\n";			
 		break;
+	case PAT_END:
 	case PAT_ALU:
 		switch(inst & 0xFFFFFFE0)
 		{
@@ -47,6 +48,9 @@ void PrintInst(unsigned int inst, unsigned short PC)
 			case UPDT:
 				std::cout << PC << ": \t" << "UPDT \n";
 				break;
+			case END:
+				std::cout << PC << ": \t" << "END \n";
+				break;
 			case ADD:
 				std::cout << PC << ": \t" << "ADD \n";
 				break;
@@ -77,15 +81,20 @@ void Core::Reset()
 
 	A = 0;
 	PC = 0;
+	_PC = 0;
 	E = 0;
+	_E = 0;
 	N = 0;
 	arg_TOS = 0xFF;
 	ret_TOS = 0xFF;
 	DB = 0;
 	FA = 0;
-	RAMReading = false;
+	_FA = 0;
+	RAM_R = false;
 	A_stall = false;
 	F_stall = false;
+
+	link = 0;
 
 }
 
@@ -118,10 +127,11 @@ void Core::LoadRAM(std::string fileName)
 
 void Core::Run(bool printState)
 {
+	bool cont = true;
 	size_t cycles = 0;
-	while(RAM[PC] != INITVAL)
+	while(cont)
 	{
-		Step(printState);
+		cont = Step(printState);
 		cycles++;
 	}
 	std::cout << "------------------------------------------------------------------ \n";
@@ -129,16 +139,21 @@ void Core::Run(bool printState)
 	std::cout << "Ran for = " << cycles << "cycles \n";
 }
 
-void Core::Step(bool printState)
+bool Core::Step(bool printState)
 {
 	int ALU = 0;
-	int _A = A;					
-	unsigned short _PC = PC;		
-	unsigned short _E = E;		
-	/*unsigned short _N = 0;*/	
-	char _DB = 0;
-	short _FA = 0;
+	int _A = A;		
+	unsigned short PCPlusOne = PC + 1;
+	
+	unsigned short _N = N;	
+	/*int _F[FRAMESIZE];
+	std::copy(F, F + 8, _F);*/
 
+	unsigned char _arg_TOS = arg_TOS;
+	unsigned char _ret_TOS = ret_TOS;
+
+	char _DB = 0;
+	
 	//Current Env
 	unsigned short E_frame = E & FRAME_MASK;
 	unsigned char  E_cell = E & CELL_MASK;
@@ -148,10 +163,8 @@ void Core::Step(bool printState)
 	unsigned char FA_frame = FA & FRAME_MASK;
 	
 	unsigned int inst;
-	bool RAMWriting = false;
+	bool RAM_W = false;
 	
-
-
 	/////////////////////////////////////////////////////////
 	//Decode
 
@@ -163,7 +176,7 @@ void Core::Step(bool printState)
 	if(printState)
 	{
 		printf("A = %X \t argS = %X \t retS = %X \t [E] = %X \n", A, argS[arg_TOS], retS[ret_TOS], F[FA_cell]);
-		printf("argTOS = %i \t retTOS = %i \t E = %i \n", arg_TOS, ret_TOS, FA_cell);
+		printf("argTOS = %i \t retTOS = %i \t E = %i \n", arg_TOS, ret_TOS, E);
 		std::cout << "\n";
 		PrintInst(inst, PC);		
 	}
@@ -171,22 +184,29 @@ void Core::Step(bool printState)
 
 
 	if(!A_stall && !F_stall)
-	{		
-		PC++; //we need this to happen right away by default
-		_PC = PC;
+	{				
 		DB = inst & DB_MASK; // index of env var we need to fetch
 	}
 	
 	//pre compute in case we need to access a var from env
-	_DB = DB - FA_cell; // this would be the next DB if we need the next frame 
+	//DB = DB - FA_cell; // this would be the next DB if we need the next frame 
 	char Fidx = FA_cell - DB; // This is the index of the slot in F we are seeking 	
 	
 
+
+	if(link)
+	{
+		F[0] = link;
+		link = 0;
+	}
 	
 	
-	if(pattern == PAT_LDI)// LDI
+	if(pattern == PAT_END)
+		return false;
+	else if(pattern == PAT_LDI)// LDI
 	{
 		_A = inst & LIT_MASK;
+		_PC = PCPlusOne;
 	}
 	else 
 	{
@@ -238,7 +258,7 @@ void Core::Step(bool printState)
 		case PAT_JMPCLOS:
 		case PAT_ALU:				
 			
-			if(!F_stall)
+			if(!F_stall && !RAM_R)
 			{
 				// _A /////////////////////////////////////////////////////////////////////
 				switch((inst & A_MASK)>>A_SHIFT)
@@ -247,11 +267,14 @@ void Core::Step(bool printState)
 					_A = A;
 					break;
 				case 1:// [E-n] -> A
-					if(_DB > 0)// need to fetch the next frame down the chain
+					if(Fidx <= 0)// need to fetch the next frame down the chain
 					{
-						RAMReading = true;
+						if(!A_stall)
+							RAM_W = true;
+						RAM_R = true;
 						A_stall = true;
 						_FA = F[0]; // Set the next frame to jump to
+						DB = DB - FA_cell; 
 					}
 					else
 					{
@@ -260,16 +283,13 @@ void Core::Step(bool printState)
 					}
 					break;
 				case 2:// pc -> A.c, E -> A.e
-					_A = argS[arg_TOS] == MARK_VAL ? (E << A_ENV_SHIFT) | PC : A;
+					_A = argS[arg_TOS] == MARK_VAL ? (E << A_ENV_SHIFT) | PCPlusOne : A;
 					break;
 				case 3:
 					_A = inst & LIT_MASK;
 					break;
 				case 4:
-					_A = ((N + E_cell) << A_ENV_SHIFT) | (inst & A_CODE_MASK);
-					std::copy(F, F + 8, RAM + N);
-					N = N + 8;
-					RAMWriting = true;
+					_A = (E << A_ENV_SHIFT) | (inst & A_CODE_MASK);						
 					break;
 				case 5:
 					_A = argS[arg_TOS] == MARK_VAL ? retS[ret_TOS] : A;
@@ -292,13 +312,14 @@ void Core::Step(bool printState)
 				// _PC ///////////////////////////////////////////////////////////////////////
 				switch((inst & PC_MASK) >> PC_SHIFT)
 				{
-				case 0:// inc above						
+				case 0:// inc above	
+					_PC = PCPlusOne;
 					break;
 				case 1://
 					_PC = _A & A_CODE_MASK;
 					break;
 				case 2://
-					_PC = argS[arg_TOS] == MARK_VAL ? retS[ret_TOS] & A_CODE_MASK : PC;
+					_PC = argS[arg_TOS] == MARK_VAL ? retS[ret_TOS] & A_CODE_MASK : PCPlusOne;
 					break;
 				case 3:
 					_PC = argS[arg_TOS] == MARK_VAL ? retS[ret_TOS] & A_CODE_MASK : _A & A_CODE_MASK;
@@ -311,10 +332,10 @@ void Core::Step(bool printState)
 
 				if(inst & ALLOC_MASK)// _A -> N
 				{
-					N = _A;
+					_N = _A;
 				}
-				else if((N & FRAME_MASK) < E_frame) 
-					N = (E_frame) + 8; 
+				else if((N & FRAME_MASK) <= E_frame) 
+					_N = (E_frame) + 8; 
 
 
 
@@ -323,9 +344,9 @@ void Core::Step(bool printState)
 		
 		}
 
-		if(!A_stall)
+		if(!A_stall && !F_stall)
 		{
-
+			
 			if(pattern == PAT_ALU)
 			{
 			// _E ///////////////////////////////////////////////////////////////////////
@@ -335,204 +356,204 @@ void Core::Step(bool printState)
 					_E = E;
 					break;
 				case 1://
-					_E = (_A & A_ENV_MASK) >> A_ENV_SHIFT;
+					_E = N;						
+					RAM_W = true;						
+					link = (_A & A_ENV_MASK) >> A_ENV_SHIFT;
 					break;
 				case 2://
-					_E = argS[arg_TOS] == MARK_VAL ? (retS[ret_TOS] & A_ENV_MASK) >> A_ENV_SHIFT : E;
+					if(argS[arg_TOS] == MARK_VAL)
+					{
+						_E = (retS[ret_TOS] & A_ENV_MASK) >> A_ENV_SHIFT;
+						_FA = _E;
+						RAM_W = true;
+						F_stall = true;
+						RAM_R = true;
+					}
+					else 
+						_E = E;
 					break;
 				case 3:
-					_E = argS[arg_TOS] == MARK_VAL ? (retS[ret_TOS] & A_ENV_MASK) >> A_ENV_SHIFT : (_A & A_ENV_MASK) >> A_ENV_SHIFT;
+					if(argS[arg_TOS] == MARK_VAL)
+					{
+						_E = (retS[ret_TOS] & A_ENV_MASK) >> A_ENV_SHIFT;
+						_FA = _E;
+						RAM_W = true;
+						F_stall = true;
+						RAM_R = true;
+					}
+					else
+					{
+						_E = (_A & A_ENV_MASK) >> A_ENV_SHIFT;
+						_FA = _E;
+						RAM_W = true;
+						F_stall = true;
+						RAM_R = true;
+					}
 					break;			
 				default:
 					std::cout << "Bad instruction encoding in _E \n";
 					break;
-				}////////////////////////////////////////////////////////////////////////////
-
-				//If we set a new active env, we must be sure to save this frame before loading the new one
-				
-				if(inst & E_MASK)
-				{
-					if((_E & FRAME_MASK) != FA_frame)
-					{						
-						std::copy(F, F + 8, RAM + E_frame);
-						RAMWriting = true;
-					}
-				}
-
-				if(inst & F_MASK)
-				{
-					//if we are going to write to F, we must be sure it matches E
-					if((_E & FRAME_MASK) != FA_frame)
-					{
-						if(!RAMWriting)
-						{
-							//load _E 
-							F_stall = true;
-							RAMReading = true;							
-							PC--;
-						}
-						else//we are going to be writing for the next cycle so must wait to read
-						{
-							F_stall = true;							
-							PC--;
-						}
-					}
-					else 
-						F_stall = false;
-				}
-				
-				if(!F_stall)
-				{
-					
+				}////////////////////////////////////////////////////////////////////////////	
+			}
 			
-					// E inc /////////////////////////////////////////////////////////////////////
-					switch((inst & E_INC_MASK) >> E_INC_SHIFT)
-					{
-					case 0:// no change				
-						break;
-					case 1://
-						if((_E & CELL_MASK) == 7)
-						{						
-							std::copy(F, F + 8, RAM + E_frame);
-							_E = N;
-						}
-						else _E = _E + 1;
-						break;
-					case 2: // conditionaly inc E 
-						if(argS[arg_TOS] != MARK_VAL)
-						{
-							if((_E & CELL_MASK) == 7)
-							{							
-								std::copy(F, F + 8, RAM + E_frame);
-								_E = N;
-							}
-							_E = _E + 1;
-						}
-						break;
-					case 3:
-						_E = _E - 1;
-						break;			
-					default:
-						std::cout << "Bad instruction encoding in retSinc \n";
-						break;
-					}//////////////////////////////////////////////////////////////////////////////
+		}
 
-					// F ////////////////////////////////////////////////////////////////////////
-					switch((inst & F_MASK) >> F_SHIFT)
-					{
-					case 0:// no change				
-						break;
-					case 1://
-						if(argS[arg_TOS] != MARK_VAL) 
-							F[_E & CELL_MASK] = argS[arg_TOS];
-						break;
-					case 2://
-						F[_E & CELL_MASK] = _A;
-						break;
-					case 3:
-						//
-						break;			
-					default:
-						std::cout << "Bad instruction encoding in F \n";
-						break;
-					}/////////////////////////////////////////////////////////////////////////////
+		if(RAM_W) 
+		{
+			std::copy(F, F + 8, RAM + (FA & FRAME_MASK));
+		}
+
+			
+				
+		if(!A_stall && !F_stall)
+		{					
+			
+			// E inc /////////////////////////////////////////////////////////////////////
+			switch((inst & E_INC_MASK) >> E_INC_SHIFT)
+			{
+			case 0:// no change				
+				break;
+			case 1://
+				if((_E & CELL_MASK) == 7)
+				{						
+					RAM_W = true;
+					_E = N;
+					link = E;
 				}
-
-				if(!A_stall && !F_stall)
+				else _E = _E + 1;
+				break;
+			case 2: // conditionaly inc E 
+				if(argS[arg_TOS] != MARK_VAL)
 				{
-					// argS inc ///////////////////////////////////////////////////////////////////////
-					switch((inst & ARGS_INC_MASK) >> ARGS_INC_SHIFT)
-					{
-					case 0:// no change				
-						break;
-					case 1://
-						arg_TOS++;
-						break;
-					case 2:	
-						//
-						break;
-					case 3:
-						arg_TOS--;
-						break;			
-					default:
-						std::cout << "Bad instruction encoding in argSinc \n";
-						break;
-					}//////////////////////////////////////////////////////////////////////////////////
-					arg_TOS &= 0x1F; //we need the stacks to wrap
+					if((_E & CELL_MASK) == 7)
+					{							
+						RAM_W = true;							
+						_E = N;							
+						link = E;
+					}
+					_E = _E + 1;
+				}
+				break;
+			case 3:
+				_E = _E - 1;
+				break;			
+			default:
+				std::cout << "Bad instruction encoding in retSinc \n";
+				break;
+			}//////////////////////////////////////////////////////////////////////////////
+
+			// F ////////////////////////////////////////////////////////////////////////
+			switch((inst & F_MASK) >> F_SHIFT)
+			{
+			case 0:// no change				
+				break;
+			case 1://
+				if(argS[arg_TOS] != MARK_VAL) 
+					F[_E & CELL_MASK] = argS[arg_TOS];
+				break;
+			case 2://
+				F[_E & CELL_MASK] = _A;
+				break;
+			case 3:
+				//
+				break;			
+			default:
+				std::cout << "Bad instruction encoding in F \n";
+				break;
+			}/////////////////////////////////////////////////////////////////////////////
+		}
+
+		if(!A_stall && !(RAM_R && RAM_W))
+		{
+			// argS inc ///////////////////////////////////////////////////////////////////////
+			switch((inst & ARGS_INC_MASK) >> ARGS_INC_SHIFT)
+			{
+			case 0:// no change				
+				break;
+			case 1://
+				arg_TOS++;
+				break;
+			case 2:	
+				//
+				break;
+			case 3:
+				arg_TOS--;
+				break;			
+			default:
+				std::cout << "Bad instruction encoding in argSinc \n";
+				break;
+			}//////////////////////////////////////////////////////////////////////////////////
+			arg_TOS &= 0x1F; //we need the stacks to wrap
 	
 
-					if(inst & ARGS_MASK)// _A -> argS
-					{
-						argS[arg_TOS] = _A;
-					}
-
-					// retS inc ///////////////////////////////////////////////////////////////////////
-					switch((inst & RETS_INC_MASK) >> RETS_INC_SHIFT)
-					{
-					case 0:// no change				
-						break;
-					case 1://
-						ret_TOS++;
-						break;
-					case 2:	
-						if(argS[arg_TOS] == MARK_VAL)
-							ret_TOS--;
-						break;
-					case 3:
-						ret_TOS--;
-						break;			
-					default:
-						std::cout << "Bad instruction encoding in retSinc \n";
-						break;
-					}//////////////////////////////////////////////////////////////////////////////////
-					ret_TOS &= 0x1F; //we need the stacks to wrap
-
-					// retS ///////////////////////////////////////////////////////////////////////
-					switch((inst & RETS_MASK) >> RETS_SHIFT)
-					{
-					case 0:// no change				
-						break;
-					case 1://
-						retS[ret_TOS] = (E << A_ENV_SHIFT) | PC;
-						break;
-					case 2://
-						retS[ret_TOS] = PC;
-						break;
-					case 3:
-						retS[ret_TOS] = _A;
-						break;			
-					default:
-						std::cout << "Bad instruction encoding in _retS \n";
-						break;
-					}///////////////////////////////////////////////////////////////////////////////
-
-				}
-
-
-
+			if(inst & ARGS_MASK)// _A -> argS
+			{
+				argS[arg_TOS] = _A;
 			}
+
+			// retS inc ///////////////////////////////////////////////////////////////////////
+			switch((inst & RETS_INC_MASK) >> RETS_INC_SHIFT)
+			{
+			case 0:// no change				
+				break;
+			case 1://
+				ret_TOS++;
+				break;
+			case 2:	
+				if(argS[arg_TOS] == MARK_VAL)
+					ret_TOS--;
+				break;
+			case 3:
+				ret_TOS--;
+				break;			
+			default:
+				std::cout << "Bad instruction encoding in retSinc \n";
+				break;
+			}//////////////////////////////////////////////////////////////////////////////////
+			ret_TOS &= 0x1F; //we need the stacks to wrap
+
+			// retS ///////////////////////////////////////////////////////////////////////
+			switch((inst & RETS_MASK) >> RETS_SHIFT)
+			{
+			case 0:// no change				
+				break;
+			case 1://
+				retS[ret_TOS] = (E << A_ENV_SHIFT) | PCPlusOne;
+				break;
+			case 2://
+				retS[ret_TOS] = PCPlusOne;
+				break;
+			case 3:
+				retS[ret_TOS] = _A;
+				break;			
+			default:
+				std::cout << "Bad instruction encoding in _retS \n";
+				break;
+			}///////////////////////////////////////////////////////////////////////////////
+
 		}
+			
+		
 		
 	}
 
 
-	if(RAMReading) 
+	
+	if(RAM_R && ! RAM_W) 
 	{
 		std::copy(RAM + (_FA & FRAME_MASK), RAM + (_FA & FRAME_MASK) + 8, F);
 		FA = _FA;
-		RAMReading = false;	
-	}
-	else
-	{
-
+		RAM_R = false;	
+		F_stall = false;
 	}
 
-	if(!A_stall & !F_stall)			
+	if(!A_stall && !F_stall)			
 	{
 		FA = _E;
 		A = _A;
 		PC = _PC;
-		E = _E;				
+		E = _E;	
+		N = _N;
 	}
 
 	
@@ -540,7 +561,7 @@ void Core::Step(bool printState)
 
 
 
-
+	return true;
 }
 
 

@@ -160,15 +160,13 @@ genOPs (Pushmark:ins)    (ops,i) = genOPs ins (0x3E04F800:ops, i+1)
 genOPs (Grab:ins)        (ops,i) = genOPs ins (0x288E04C0:ops, i+1)  
 genOPs (Return:ins)      (ops,i) = genOPs ins (0x20CE06C0:ops, i+1) 
 genOPs ((Const x):ins)   (ops,i) = genOPs ins ((0x80000000 .|. x):ops, i+1)  
-genOPs ((Prim Add):ins)  (ops,i) = genOPs ins (0x3C001100:ops, i+1) 
--- genOPs ((Cur c):ins)     (ops,i) = genOPs ins (ops', i') 
---   where (ops', i') = genOPs c ((0x10000000 .|. i):ops, i+1)
-
+genOPs ((Prim Add):ins)  (ops,i) = genOPs ins (0x3C0C1100:ops, i+1) 
 genOPs ((Cur c):ins)     (ops,i) = (ops'' ++ ((0x10000000 .|. i'):ops), i'') 
   where (ops', i') = genOPs ins ([], i+1)
         (ops'', i'') = genOPs c (ops', i')
+genOPs []                (ops@(0x20CE06C0:_),i) = (ops, i) 
+genOPs []                (ops,i) = (0x60000000:ops, i+1) 
 
-genOPs []                (ops,i) = (ops, i) 
 
 sim :: ZAM -> IO()
 sim x@([], _,_,_,_) = do return()
