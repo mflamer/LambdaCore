@@ -128,7 +128,9 @@ public:
 	unsigned short _E;
 	unsigned short N;		// next allocation address
 	unsigned char arg_TOS;  // top of arg stack 
+	unsigned char _arg_TOS;
 	unsigned char ret_TOS;  // top of ret stack 
+	unsigned char _ret_TOS;
 
 
 
@@ -141,7 +143,10 @@ public:
 	bool A_stall;		//The processor must stall when searching through envs
 	bool F_stall;		//The processor must stall when setting a new env
 
-	unsigned int link; 
+	unsigned int link;
+
+	bool late_write_F;
+	unsigned int late_write_val; 
 	
 
 };

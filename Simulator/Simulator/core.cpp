@@ -95,6 +95,9 @@ void Core::Reset()
 	F_stall = false;
 
 	link = 0;
+	late_write_F = false;
+	late_write_val = 0;
+
 
 }
 
@@ -115,7 +118,7 @@ void Core::LoadRAM(std::string fileName)
 		else if(fread ( (void*)RAM, 4, size / 4, pFile ) == size / 4)
 		{
 			std::cout << "Loaded " << size / 4 << " instructions... \n";
-			N = ((size / 4) & 0xFFFFFFF8) + 8;
+			N = ((size / 4) & 0xFFFFFFF8) + 9;
 			E = N;
 			FA = E;
 			N += 8;
@@ -198,6 +201,12 @@ bool Core::Step(bool printState)
 	{
 		F[0] = link;
 		link = 0;
+	}
+
+	if(!RAM_R && late_write_F)
+	{
+		F[FA_cell] = late_write_val;
+		late_write_F = false;
 	}
 	
 	
@@ -388,6 +397,8 @@ bool Core::Step(bool printState)
 						RAM_W = true;
 						F_stall = true;
 						RAM_R = true;
+						late_write_val = argS[arg_TOS];//should be able to use arg_TOS - 1 here instead
+						late_write_F = true; 
 					}
 					break;			
 				default:
@@ -405,7 +416,7 @@ bool Core::Step(bool printState)
 
 			
 				
-		if(!A_stall && !F_stall)
+		if(!A_stall && (!RAM_R || !RAM_W))
 		{					
 			
 			// E inc /////////////////////////////////////////////////////////////////////
@@ -441,6 +452,10 @@ bool Core::Step(bool printState)
 				std::cout << "Bad instruction encoding in retSinc \n";
 				break;
 			}//////////////////////////////////////////////////////////////////////////////
+		}
+
+		if(!A_stall && !F_stall)
+		{
 
 			// F ////////////////////////////////////////////////////////////////////////
 			switch((inst & F_MASK) >> F_SHIFT)
@@ -469,48 +484,50 @@ bool Core::Step(bool printState)
 			switch((inst & ARGS_INC_MASK) >> ARGS_INC_SHIFT)
 			{
 			case 0:// no change				
+				_arg_TOS = arg_TOS;
 				break;
 			case 1://
-				arg_TOS++;
+				_arg_TOS = arg_TOS + 1;
 				break;
 			case 2:	
 				//
 				break;
 			case 3:
-				arg_TOS--;
+				_arg_TOS = arg_TOS -1;
 				break;			
 			default:
 				std::cout << "Bad instruction encoding in argSinc \n";
 				break;
 			}//////////////////////////////////////////////////////////////////////////////////
-			arg_TOS &= 0x1F; //we need the stacks to wrap
+			_arg_TOS &= 0x1F; //we need the stacks to wrap
 	
 
 			if(inst & ARGS_MASK)// _A -> argS
 			{
-				argS[arg_TOS] = _A;
+				argS[_arg_TOS] = _A;
 			}
 
 			// retS inc ///////////////////////////////////////////////////////////////////////
 			switch((inst & RETS_INC_MASK) >> RETS_INC_SHIFT)
 			{
-			case 0:// no change				
+			case 0:// no change	
+				_ret_TOS = ret_TOS;
 				break;
 			case 1://
-				ret_TOS++;
+				_ret_TOS = ret_TOS + 1;
 				break;
 			case 2:	
 				if(argS[arg_TOS] == MARK_VAL)
-					ret_TOS--;
+					_ret_TOS = ret_TOS - 1;
 				break;
 			case 3:
-				ret_TOS--;
+				_ret_TOS = ret_TOS -1;
 				break;			
 			default:
 				std::cout << "Bad instruction encoding in retSinc \n";
 				break;
 			}//////////////////////////////////////////////////////////////////////////////////
-			ret_TOS &= 0x1F; //we need the stacks to wrap
+			_ret_TOS &= 0x1F; //we need the stacks to wrap
 
 			// retS ///////////////////////////////////////////////////////////////////////
 			switch((inst & RETS_MASK) >> RETS_SHIFT)
@@ -518,13 +535,13 @@ bool Core::Step(bool printState)
 			case 0:// no change				
 				break;
 			case 1://
-				retS[ret_TOS] = (E << A_ENV_SHIFT) | PCPlusOne;
+				retS[_ret_TOS] = (E << A_ENV_SHIFT) | PCPlusOne;
 				break;
 			case 2://
-				retS[ret_TOS] = PCPlusOne;
+				retS[_ret_TOS] = PCPlusOne;
 				break;
 			case 3:
-				retS[ret_TOS] = _A;
+				retS[_ret_TOS] = _A;
 				break;			
 			default:
 				std::cout << "Bad instruction encoding in _retS \n";
@@ -554,6 +571,8 @@ bool Core::Step(bool printState)
 		PC = _PC;
 		E = _E;	
 		N = _N;
+		arg_TOS = _arg_TOS;
+		ret_TOS = _ret_TOS;
 	}
 
 	
