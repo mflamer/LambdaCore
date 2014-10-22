@@ -9,54 +9,66 @@ void PrintInst(unsigned int inst, unsigned short PC)
 		std::cout << PC << ": \t" << "LDI " << (inst & LIT_MASK) << "\n";
 		break;
 	case PAT_JMPCLOS:
-		std::cout << PC << ": \t" << "CLOS " << (inst & A_CODE_MASK) << "\n";			
-		break;
-	case PAT_END:
-	case PAT_ALU:
-		switch(inst & 0xFFFFFFE0)
+		switch(inst & 0xFFFF0000)
 		{
-			case ACC:
-				std::cout << PC << ": \t" << "ACC " << (inst & DB_MASK) << "\n";
-				break;
-			case APPT:
-				std::cout << PC << ": \t" << "APPT \n";
-				break;
-			case APP:
-				std::cout << PC << ": \t" << "APP \n";
-				break;
-			case PUSH:
-				std::cout << PC << ": \t" << "PUSH \n";
-				break;
-			case MARK:
-				std::cout << PC << ": \t" << "MARK \n";
-				break;
-			case GRAB:
-				std::cout << PC << ": \t" << "GRAB \n";
-				break;
-			case RET:
-				std::cout << PC << ": \t" << "RET \n";
-				break;
-			case LET:
-				std::cout << PC << ": \t" << "LET \n";
-				break;
-			case ELET:
-				std::cout << PC << ": \t" << "ELET \n";
-				break;
-			case TEMP:
-				std::cout << PC << ": \t" << "TEMP \n";
-				break;
-			case UPDT:
-				std::cout << PC << ": \t" << "UPDT \n";
-				break;
-			case END:
-				std::cout << PC << ": \t" << "END \n";
-				break;
-			case ADD:
-				std::cout << PC << ": \t" << "ADD \n";
+			case CLOS:
+				std::cout << PC << ": \t" << "CLOS " << (inst & A_CODE_MASK) << "\n";			
+				break;	
+			case IF:
+				std::cout << PC << ": \t" << "IF " << (inst & A_CODE_MASK) << "\n";			
 				break;
 			default:
 				std::cout << "Bad instruction encoding! \n";
 				break;
+		}
+		break;
+	case PAT_ALU:
+		if(inst == END)
+				std::cout << PC << ": \t" << "END \n";
+		else
+		{
+			switch(inst & 0xFFFFFFE0)
+			{
+				case ACC:
+					std::cout << PC << ": \t" << "ACC " << (inst & DB_MASK) << "\n";
+					break;
+				case APPT:
+					std::cout << PC << ": \t" << "APPT \n";
+					break;
+				case APP:
+					std::cout << PC << ": \t" << "APP \n";
+					break;
+				case PUSH:
+					std::cout << PC << ": \t" << "PUSH \n";
+					break;
+				case MARK:
+					std::cout << PC << ": \t" << "MARK \n";
+					break;
+				case GRAB:
+					std::cout << PC << ": \t" << "GRAB \n";
+					break;
+				case RET:
+					std::cout << PC << ": \t" << "RET \n";
+					break;
+				case LET:
+					std::cout << PC << ": \t" << "LET \n";
+					break;
+				case ELET:
+					std::cout << PC << ": \t" << "ELET \n";
+					break;
+				case TEMP:
+					std::cout << PC << ": \t" << "TEMP \n";
+					break;
+				case UPDT:
+					std::cout << PC << ": \t" << "UPDT \n";
+					break;				
+				case ADD:
+					std::cout << PC << ": \t" << "ADD \n";
+					break;
+				default:
+					std::cout << "Bad instruction encoding! \n";
+					break;
+			}
 		}
 		break;
 		default:
@@ -210,7 +222,7 @@ bool Core::Step(bool printState)
 	}
 	
 	
-	if(pattern == PAT_END)
+	if(inst == END)
 		return false;
 	else if(pattern == PAT_LDI)// LDI
 	{
@@ -332,7 +344,10 @@ bool Core::Step(bool printState)
 					break;
 				case 3:
 					_PC = argS[arg_TOS] == MARK_VAL ? retS[ret_TOS] & A_CODE_MASK : _A & A_CODE_MASK;
-					break;			
+					break;	
+				case 4:
+					_PC = A != 0 ? inst & A_CODE_MASK : PCPlusOne;
+					break;
 				default:
 					std::cout << "Bad instruction encoding in _PC \n";
 					break;

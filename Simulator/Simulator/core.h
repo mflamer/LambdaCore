@@ -10,19 +10,19 @@
 
 #define PAT_ALU			1
 #define PAT_JMPCLOS		0
-#define PAT_LDI			4
-#define PAT_END			3
+#define PAT_LDI			2
+
 
 #define LIT_MASK		0x7FFFFFFF
-#define PTRN_MASK		0xE0000000
-#define PTRN_SHIFT		29
-#define A_MASK			0x1C000000
-#define A_SHIFT			26
-#define ARGS_MASK		0x02000000
-#define ARGS_SHIFT		25
-#define ALLOC_MASK		0x01000000
-#define ALLOC_SHIFT		24
-#define PC_MASK			0x00C00000
+#define PTRN_MASK		0xC0000000
+#define PTRN_SHIFT		30
+#define A_MASK			0x38000000
+#define A_SHIFT			27
+#define ARGS_MASK		0x04000000
+#define ARGS_SHIFT		26
+#define ALLOC_MASK		0x02000000
+#define ALLOC_SHIFT		25
+#define PC_MASK			0x01C00000
 #define PC_SHIFT		22
 #define RETS_MASK		0x00300000
 #define RETS_SHIFT		20
@@ -50,19 +50,20 @@
 //------ Instructions -------------------------------
 					
 #define 	LDI		0x80000000	    
-#define		ACC		0x24000000
-#define		APPT	0x204C02A0			
-#define		APP		0x205D02A0		
-#define		PUSH	0x22040000	
-#define		MARK	0x3E04F800	
-#define		CLOS	0x10000000
-#define		GRAB	0x288E04C0		
-#define		RET		0x20CE06C0	
-#define		LET		0x20000120		
-#define		ELET	0x20000060			
-#define		TEMP	0x2000F920	
-#define		UPDT	0x20000100	
-#define		END		0x60000000
+#define		ACC		0x48000000
+#define		APPT	0x404C02A0			
+#define		APP		0x405D02A0		
+#define		PUSH	0x44040000	
+#define		MARK	0x7C04F800	
+#define		CLOS	0x20000000
+#define		IF		0x01000000		
+#define		GRAB	0x588E04C0		
+#define		RET		0x40CE06C0	
+#define		LET		0x40000120		
+#define		ELET	0x40000060			
+#define		TEMP	0x4000F920	
+#define		UPDT	0x40000100	
+#define		END		0x7FFFFFFF
 //#define	JMP			
 //#define	IF			
 //#define	EQ			
@@ -73,7 +74,7 @@
 //#define	GTE			
 //#define	ABV			
 //#define	BEL			
-#define 	ADD		0x3C0C1100		
+#define 	ADD		0x780C1100	
 //#define	SUB		
 //#define	AND     
 //#define	OR		
@@ -84,8 +85,8 @@
 //#define	LSHR	
 //#define	LSHL	
 
-#define		INITVAL 0
-#define 	MARK_VAL		0x80000000
+#define		INITVAL		0x00000000
+#define 	MARK_VAL	0x80000000
 
 struct Closure
 {
