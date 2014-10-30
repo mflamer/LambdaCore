@@ -65,6 +65,9 @@ void PrintInst(unsigned int inst, unsigned short PC)
 				case ADD:
 					std::cout << PC << ": \t" << "ADD \n";
 					break;
+				case SUB:
+					std::cout << PC << ": \t" << "SUB \n";
+					break;
 				default:
 					std::cout << "Bad instruction encoding! \n";
 					break;
@@ -130,7 +133,7 @@ void Core::LoadRAM(std::string fileName)
 		else if(fread ( (void*)RAM, 4, size / 4, pFile ) == size / 4)
 		{
 			std::cout << "Loaded " << size / 4 << " instructions... \n";
-			N = ((size / 4) & 0xFFFFFFF8) + 9;
+			N = ((size / 4) & 0xFFFFFFF8) + 8;
 			E = N;
 			FA = E;
 			N += 8;

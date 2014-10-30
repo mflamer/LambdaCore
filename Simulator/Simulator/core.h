@@ -61,7 +61,7 @@
 #define		RET		0x40CE06C0	
 #define		LET		0x40000120		
 #define		ELET	0x40000060			
-#define		TEMP	0x4000F920	
+#define		TEMP	0x7800F920	
 #define		UPDT	0x40000100	
 #define		END		0x7FFFFFFF
 //#define	JMP			
@@ -75,7 +75,7 @@
 //#define	ABV			
 //#define	BEL			
 #define 	ADD		0x780C1100	
-//#define	SUB		
+#define		SUB		0x780C1900			
 //#define	AND     
 //#define	OR		
 //#define	XOR		
