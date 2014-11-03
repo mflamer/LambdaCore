@@ -132,7 +132,7 @@ compile (DB_CONST k) = [Const k]
 compile (DB_I n) = [Access n]
 compile (DB_APP dbls) = [Pushmark] ++ dbls' ++ [Apply] 
                                 where dbls' = intercalate [Push] $ map compile $ reverse dbls                                      
-compile (DB_LAM dbl) = [Cur $ compileT dbl ++ [Return]] 
+compile (DB_LAM dbl) = [Cur $ compile dbl ++ [Return]] 
 compile (DB_LET v e) = (compile v) ++ Let:(compile e) ++ [EndLet]  
 compile (DB_LETREC v e) = Dummy:(compile v) ++ Update:(compile e) ++ [EndLet] 
 compile (DB_IF b t e) = (compile b) ++ [If $ compile t] ++ (compile e) 
@@ -194,8 +194,11 @@ genOPs []                (ops,i) = (0x7FFFFFFF:ops, i+1)
 
 
 test = (APP [(LAM "f" (APP [(VAR "f"), (CONST 10)])), (APP [(LAM "y" (LAM "x" (PRIM_2 Add (VAR "x") (VAR "y")))), (CONST 5)])])   
+     
 
 test2 = (APP [(LAM "f" (LAM "x" (APP[(VAR "f"), (APP [(VAR "f"), (VAR "x")])]))), (LAM "y" (PRIM_2 Add (VAR "y") (VAR "y"))), (CONST 5)])
+
+
 
 test3 = (LET "x" (CONST 25) 
         (LET "y" (CONST 5)

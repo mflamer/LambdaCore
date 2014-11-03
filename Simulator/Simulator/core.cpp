@@ -117,7 +117,7 @@ void Core::Reset()
 }
 
 
-void Core::LoadRAM(std::string fileName)
+bool Core::LoadRAM(std::string fileName)
 {
 	FILE* pFile;
 	fopen_s(&pFile, fileName.c_str(), "rb");
@@ -138,8 +138,11 @@ void Core::LoadRAM(std::string fileName)
 			FA = E;
 			N += 8;
 		}
-		fclose (pFile);		
+		fclose (pFile);	
+		return true;
 	}
+	else 
+		return false;
 }
 
 

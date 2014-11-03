@@ -1,5 +1,7 @@
-(let x 25 
-    (let y 5
-        (+ x y)))
 
-((Lam f (f 10)) ((Lam y (Lam x (+ x y))) 5))        
+(letrec cntdn
+    (lam x 
+       (if x
+          (cntdn (- x 1))
+          (0))))
+    (cntdn 5)

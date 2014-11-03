@@ -2,6 +2,8 @@
 module LamCor.Parser
 (parse
 ,clex
+,expr
+,split
 )where
 
 import LamCor.Language
@@ -39,39 +41,76 @@ twoCharOps = ["==", "˜=", ">=", "<=", "->"]
 keywords = ["def", "data", "let", "letrec", "case", "if", "lam", "Pack"]
 
 
+chain :: ([Expr],[Token]) -> ([Expr],[Token])
+chain ([e],[]) = ([e],[])
+chain (es,[]) = (appl es,[])
+chain (es,ts) = chain (es++es',ts') where
+   (es',ts') = expr ts 
 
 
-syntax :: ([Token],[Expr]) -> ([Token],[Expr])
-syntax (("(":ts), es) = syntax(ts, es) 
-syntax ((")":ts), es) = syntax(ts, es) --where 
-   --(ts', es') = syntax (ts, [])  
-syntax (("def":s:ts), es) = syntax (ts', (DEF s e'):es) where
-   (ts', e':es') = syntax (ts, [])
-syntax (("lam":s:ts), es) = syntax (ts', (LAM s e'):es) where
-   (ts', e':es') = syntax (ts, [])
-syntax (("let":s:ts), es) = syntax (ts'', (LET s e' e''):es) where
-   (ts', e':es') = syntax (ts, [])
-   (ts'', e'':es'') = syntax (ts', []) 
-syntax (("if":ts), es) = syntax (ts3, (IF eb et ef):es) where
-   (ts1, eb:es1) = syntax (ts, [])
-   (ts2, et:es2) = syntax (ts1, [])
-   (ts3, ef:es3) = syntax (ts2, [])    
-syntax (("+":ts), es) = let 
-   (ts'@(t:tt), e':es') = syntax (ts, [])
-   (ts'', e'':es'') = syntax (ts', [])  
-      in case t of ")" -> syntax (ts', (LAM "y" (PRIM_2 Add e' (VAR "y")):es))
-                   x -> syntax (ts'', (PRIM_2 Add e' e''):es)
-syntax (("-":ts), es) = let 
-   (ts'@(t:tt), e':es') = syntax (ts, [])
-   (ts'', e'':es'') = syntax (ts', [])  
-      in case t of ")" -> syntax (ts', (LAM "y" (PRIM_2 Sub e' (VAR "y")):es))
-                   x -> syntax (ts'', (PRIM_2 Sub e' e''):es)                           
-syntax (t@(c:cs):ts, es) 
-   | isNumber c = (ts, (CONST (read t :: Word32)):es)
-   | otherwise  = (ts, (VAR t):es)
-syntax ([], es) = ([], es)    
+expr :: [Token] -> ([Expr],[Token])
+expr [] = ([],[])
+expr t@("(":ts) = (el, r) 
+   where
+   (l,r) = split ([],t) 0  
+   ll = expr l
+   (el,_) = chain ll
+   -- rr = expr r
+   -- (er,_) = chain rr
+expr (")":ts)      = expr ts     
+expr ("def":s:ts)  = ([DEF s e],ts') where
+   (e:_,ts') = expr ts   
+expr ("lam":s:ts)  = ([LAM s e],ts') where
+   (e:_,ts') = expr ts
+expr ("let":s:ts)  = ([LET s e e'],ts'') where
+   (e:_,ts')   = expr ts
+   (e':es',ts'') = expr ts'
+expr ("letrec":s:ts)  = ([LETREC s e e'],ts'') where
+   (e:_,ts')   = expr ts
+   (e':es',ts'') = expr ts'
+expr ("if":ts)     = ([IF eb et ef],ts''') where
+   (eb:_,ts')   = expr ts
+   (et:_,ts'')  = expr ts'
+   (ef:_,ts''') = expr ts''
+expr ("+":ts)      = let 
+   (e:_, ts'@(t:tt)) = expr ts
+   (e':_,ts'')       = expr ts' 
+      in case t of ")" -> ([LAM "y" (PRIM_2 Add e (VAR "y"))],ts'')
+                   x   -> ([PRIM_2 Add e e'],ts'')
+expr ("-":ts)      = let 
+   (e:_, ts'@(t:tt)) = expr ts
+   (e':_,ts'')       = expr ts' 
+      in case t of ")" -> ([LAM "y" (PRIM_2 Sub e (VAR "y"))],ts'')
+                   x   -> ([PRIM_2 Sub e e'],ts'')                         
+expr (t@(c:cs):ts) 
+   | isNumber c = ([CONST (read t :: Word32)],ts)
+   | otherwise  = ([VAR t],ts)   
+
+
+split :: ([Token],[Token]) -> Int -> ([Token],[Token])
+split (l,[]) d       = (reverse l,[])
+split (l,"(":ts) d   
+   | d == 0    = split (l, ts) (d+1)
+   | otherwise = split ("(":l, ts) (d+1)
+split (l,")":ts) d
+   | d == 1    = (reverse l, ts)
+   | otherwise = split (")":l, ts) (d-1) 
+split (l,t:ts) d = split (t:l,ts) d
+    
+
+
+appl :: [Expr] -> [Expr]
+appl []  = []
+appl [e] = [e]
+appl a@(e:es) = [APP a]     
+
+
+
+-- syntaxTop :: ([Token],[Expr]) -> ([Token],[Expr])   
+
+
 
 
 parse :: String -> [Expr]
-parse s = es where 
-   (ts, es) = syntax ((clex s), [])
+parse s = es where (es, ts) = expr (clex s)
+   

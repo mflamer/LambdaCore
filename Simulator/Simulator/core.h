@@ -109,7 +109,7 @@ public:
 	Core();
 
 	void					Reset();
-	void					LoadRAM(std::string file);
+	bool					LoadRAM(std::string file);
 	void					Run(bool printState);
 	bool					Step(bool printState);
 
