@@ -58,14 +58,15 @@
 #define		CLOS	0x20000000
 #define		IF		0x01000000		
 #define		GRAB	0x588E04C0		
-#define		RET		0x40CE06C0	
+#define		RETC	0x40CE06C0	
 #define		LET		0x40000120		
 #define		ELET	0x40000060			
 #define		TEMP	0x7800F920	
 #define		UPDT	0x40000100	
 #define		END		0x7FFFFFFF
-//#define	JMP			
-//#define	IF			
+#define		CALL	0x01A10000
+#define		JUMP	0x01800000		
+#define	    RET		0x01430000	
 //#define	EQ			
 //#define	NE			
 //#define	LT			

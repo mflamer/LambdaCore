@@ -4,12 +4,14 @@ module LamCor.Parser
 ,clex
 ,expr
 ,split
+,compileSrc
 )where
 
 import LamCor.Language
 
 import Data.Char
 import Data.Word
+import qualified Data.Map as M
 
 type Token = String
 
@@ -33,19 +35,21 @@ isIdChar :: Char -> Bool
 isIdChar c = isAlpha c || isNumber c || (c == '_')        
 
 twoCharOps :: [Token]
-twoCharOps = ["==", "˜=", ">=", "<=", "->"]
+twoCharOps = ["==", "!=", ">=", "<=", "->"]
 
 
 
 
-keywords = ["def", "data", "let", "letrec", "case", "if", "lam", "Pack"]
+-- keywords = ["def", "data", "let", "letrec", "case", "if", "lam", "Pack"]
 
 
-chain :: ([Expr],[Token]) -> ([Expr],[Token])
-chain ([e],[]) = ([e],[])
-chain (es,[]) = (appl es,[])
-chain (es,ts) = chain (es++es',ts') where
-   (es',ts') = expr ts 
+
+
+
+syntaxTop :: ([Expr],[Token]) -> ([Expr],[Token])   
+syntaxTop (es,[]) = (es,[])
+syntaxTop (es,ts) = syntaxTop (es ++ es', ts') where
+   (es',ts') = expr ts
 
 
 expr :: [Token] -> ([Expr],[Token])
@@ -96,7 +100,13 @@ split (l,")":ts) d
    | d == 1    = (reverse l, ts)
    | otherwise = split (")":l, ts) (d-1) 
 split (l,t:ts) d = split (t:l,ts) d
+
     
+chain :: ([Expr],[Token]) -> ([Expr],[Token])
+chain ([e],[]) = ([e],[])
+chain (es,[]) = (appl es,[])
+chain (es,ts) = chain (es++es',ts') where
+   (es',ts') = expr ts
 
 
 appl :: [Expr] -> [Expr]
@@ -105,12 +115,26 @@ appl [e] = [e]
 appl a@(e:es) = [APP a]     
 
 
-
--- syntaxTop :: ([Token],[Expr]) -> ([Token],[Expr])   
-
-
-
-
 parse :: String -> [Expr]
-parse s = es where (es, ts) = expr (clex s)
-   
+parse s = es where (es, ts) = syntaxTop ([], clex s)  
+
+
+
+
+compileTop :: (SymbTable,[Word32],Word32) -> [Expr] -> (SymbTable,[Word32],Word32)
+compileTop env [] = env
+compileTop (symt,ins,pc) (e@(DEF s _):es) = compileTop (compileExpr (symt',ins,pc) e) es where
+   symt' = M.insertWith (\n o -> o) s pc symt
+compileTop (symt,ins,pc) (e:es) = compileTop (compileExpr (symt,ins,pc) e) es 
+    
+
+compileExpr :: (SymbTable,[Word32],Word32)-> Expr -> (SymbTable,[Word32],Word32)
+compileExpr (symt,ins,pc) e = (symt,ins',pc') where
+   (ins',pc') = genOPs (compile $ exprToDB symt e) (ins,pc)
+
+
+compileSrc :: String -> [Word32]
+compileSrc src = reverse ins' where
+   (symt,ins,cnt) = compileTop (M.empty,[],0) exprs
+   (symt',ins',cnt') = compileTop (symt,[],0) exprs
+   exprs = parse src

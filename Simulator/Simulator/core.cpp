@@ -17,6 +17,15 @@ void PrintInst(unsigned int inst, unsigned short PC)
 			case IF:
 				std::cout << PC << ": \t" << "IF " << (inst & A_CODE_MASK) << "\n";			
 				break;
+			case CALL:
+				std::cout << PC << ": \t" << "CALL " << (inst & A_CODE_MASK) << "\n";			
+				break;
+			case JUMP:
+				std::cout << PC << ": \t" << "JUMP " << (inst & A_CODE_MASK) << "\n";			
+				break;
+			case RET:
+				std::cout << PC << ": \t" << "RET \n";			
+				break;
 			default:
 				std::cout << "Bad instruction encoding! \n";
 				break;
@@ -47,8 +56,8 @@ void PrintInst(unsigned int inst, unsigned short PC)
 				case GRAB:
 					std::cout << PC << ": \t" << "GRAB \n";
 					break;
-				case RET:
-					std::cout << PC << ": \t" << "RET \n";
+				case RETC:
+					std::cout << PC << ": \t" << "RETC \n";
 					break;
 				case LET:
 					std::cout << PC << ": \t" << "LET \n";
@@ -353,6 +362,15 @@ bool Core::Step(bool printState)
 					break;	
 				case 4:
 					_PC = A != 0 ? inst & A_CODE_MASK : PCPlusOne;
+					break;
+				case 5:
+					_PC = retS[ret_TOS] & A_CODE_MASK;
+					break;
+				case 6:
+					_PC = inst & A_CODE_MASK;
+					break;
+				case 7:
+					_PC = PCPlusOne & (inst & DB_MASK);//??
 					break;
 				default:
 					std::cout << "Bad instruction encoding in _PC \n";

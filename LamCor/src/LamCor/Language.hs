@@ -1,22 +1,22 @@
 
 module LamCor.Language
 (Expr(..)
-,POp(..)  
+,POp(..) 
+,SymbTable 
 ,compile
 ,compileT
 ,genOPs
-,compileOut
+,exprToDB
 )
   where
 
 import Data.Word
 import Data.List
 import Data.Bits
-import Data.Binary
-import Data.Binary.Get()
-import qualified Data.ByteString.Lazy as B 
+import qualified Data.Map as M
 
 type Symb = String
+type SymbTable = M.Map Symb Word32
 
 data Expr = CONST Word32 
           | DEF Symb Expr                      
@@ -24,8 +24,10 @@ data Expr = CONST Word32
           | LAM Symb Expr
           | LET Symb Expr Expr
           | LETREC Symb Expr Expr
-          | IF Expr Expr Expr
+          | IF Expr Expr Expr          
           | VAR Symb
+          | GET Symb
+          | SET Symb Word32
           ------------------------------
           | PRIM_1 POp Expr
           | PRIM_2 POp Expr Expr          
@@ -33,24 +35,30 @@ data Expr = CONST Word32
 
 
 data DBExpr = DB_CONST Word32 
-              | DB_DEF Symb DBExpr                  
-              | DB_APP [DBExpr]
-              | DB_LAM DBExpr
-              | DB_LET DBExpr DBExpr
-              | DB_LETREC DBExpr DBExpr
-              | DB_IF DBExpr DBExpr DBExpr
-              | DB_VAR String
-              | DB_I Word32
-              | DB_PRIM_1 POp DBExpr
-              | DB_PRIM_2 POp DBExpr DBExpr
-              deriving (Eq, Show)
+            | DB_DEF Symb DBExpr                              
+            | DB_APP [DBExpr]
+            | DB_LAM DBExpr
+            | DB_LET DBExpr DBExpr
+            | DB_LETREC DBExpr DBExpr
+            | DB_IF DBExpr DBExpr DBExpr
+            | DB_VAR Symb
+            | DB_GET Symb
+            | DB_SET Symb Word32
+            | DB_CALL Word32
+            | DB_JUMP Word32
+            | DB_I Word32
+            | DB_PRIM_1 POp DBExpr
+            | DB_PRIM_2 POp DBExpr DBExpr
+            deriving (Eq, Show)
 
 data SF a = FF | SS a
     deriving (Eq, Show)
 
 
-exprToDB :: Expr -> DBExpr
-exprToDB l = db_translate [] l where
+exprToDB :: SymbTable -> Expr -> DBExpr
+exprToDB symt l = db_translate [] l where
+       db_translate env (DEF s e) = DB_DEF s e' where
+           e' = db_translate env e 
        db_translate _ (CONST n) = DB_CONST n        
        db_translate env (LAM v e) = DB_LAM e' where
            e' = db_translate (v:env) e
@@ -74,7 +82,9 @@ exprToDB l = db_translate [] l where
        db_translate env (VAR v)
         = case (find v env) of
             SS n -> DB_I n
-            FF -> DB_VAR v
+            FF -> case (M.lookup v symt) of
+                Nothing   -> DB_CALL 0
+                Just addr -> DB_CALL addr
         where 
             find v [] = FF
             find v (v':rest) | v == v' = SS 0
@@ -96,46 +106,51 @@ data INST = Access Word32
           ------------ Application
           | Cur [INST]
           | Grab
-          | Return
+          | RetC
           | Let
           | EndLet
           | Dummy
           | Update
           ------------ Absraction
           | If [INST]
+          | Call Word32
+          -- | Jump
+          | Ret 
+          -- | Get
+          -- | Set
           | Prim POp
           | Const Word32
           deriving (Eq, Show)
 
 data POp = Add 
-           | Sub 
-           | Mul           
-           | And
-           | Or 
-           | Xor 
-           | Xnor
-           | Not 
-           | Eq 
-           | Gt 
-           | Lt 
-           | Gte
-           | Lte           
-          
-
-           deriving (Eq, Show)
+         | Sub 
+         | Mul           
+         | And
+         | Or 
+         | Xor 
+         | Xnor
+         | Not 
+         | Eq 
+         | Gt 
+         | Lt 
+         | Gte
+         | Lte 
+         deriving (Eq, Show)
 
 
 
 
 compile :: DBExpr -> [INST]
+compile (DB_DEF v e) = (compile e) ++ [Ret] 
 compile (DB_CONST k) = [Const k]
 compile (DB_I n) = [Access n]
 compile (DB_APP dbls) = [Pushmark] ++ dbls' ++ [Apply] 
                                 where dbls' = intercalate [Push] $ map compile $ reverse dbls                                      
-compile (DB_LAM dbl) = [Cur $ compile dbl ++ [Return]] 
+compile (DB_LAM dbl) = [Cur $ compile dbl ++ [RetC]] 
 compile (DB_LET v e) = (compile v) ++ Let:(compile e) ++ [EndLet]  
 compile (DB_LETREC v e) = Dummy:(compile v) ++ Update:(compile e) ++ [EndLet] 
 compile (DB_IF b t e) = (compile b) ++ [If $ compile t] ++ (compile e) 
+compile (DB_CALL a) = [Call a]
 compile (DB_PRIM_1 i e) = (compile e) ++ [Prim i]
 compile (DB_PRIM_2 i e0 e1) = (compile e1) ++ Push:(compile e0) ++ [Prim i]                                
 
@@ -155,12 +170,7 @@ compileT l = compile l
 
 
 
-compileOut :: Expr -> IO()
-compileOut lam = do
-  B.writeFile "lam.bin" bs 
-    where bs        = encode $ map byteSwap32 $ reverse ops
-          c         = compile $ exprToDB lam
-          (ops,len) = genOPs c ([],0)
+
 
 
 genOPs :: [INST] -> ([Word32], Word32) -> ([Word32], Word32)
@@ -169,8 +179,10 @@ genOPs (Appterm:ins)     (ops,i) = genOPs ins (0x404C02A0:ops, i+1)
 genOPs (Apply:ins)       (ops,i) = genOPs ins (0x405D02A0:ops, i+1)    
 genOPs (Push:ins)        (ops,i) = genOPs ins (0x44040000:ops, i+1)    
 genOPs (Pushmark:ins)    (ops,i) = genOPs ins (0x7C04F800:ops, i+1)                               
-genOPs (Grab:ins)        (ops,i) = genOPs ins (0x588E04C0:ops, i+1)  
-genOPs (Return:ins)      (ops,i) = genOPs ins (0x40CE06C0:ops, i+1) 
+genOPs (Grab:ins)        (ops,i) = genOPs ins (0x588E04C0:ops, i+1)
+genOPs ((Call a):ins)    (ops,i) = genOPs ins ((0x01A10000 .|. a):ops, i+1)  
+genOPs (Ret:ins)         (ops,i) = genOPs ins (0x01430000:ops, i+1)   
+genOPs (RetC:ins)        (ops,i) = genOPs ins (0x40CE06C0:ops, i+1) 
 genOPs (Let:ins)         (ops,i) = genOPs ins (0x40000120:ops, i+1)
 genOPs (EndLet:ins)      (ops,i) = genOPs ins (0x40000060:ops, i+1)
 genOPs (Dummy:ins)       (ops,i) = genOPs ins (0x7800F920:ops, i+1)
@@ -245,8 +257,8 @@ type CLO = ([INST], ENV)
 --          -code- -acc--env- -arg-  -ret-
 type ZAM = ([INST], VAL, ENV, [VAL], [CLO])     
 
-mkZam :: Expr -> ZAM
-mkZam l = (c, VMark, [], [], []) where c = compile $ exprToDB l
+-- mkZam :: Expr -> ZAM
+-- mkZam l = (c, VMark, [], [], []) where c = compile $ exprToDB l
 
 
 -- eval :: ZAM -> ZAM                                        
@@ -264,8 +276,8 @@ mkZam l = (c, VMark, [], [], []) where c = compile $ exprToDB l
 -- step ((If c1):c0, a, e, s, r) = (c1, a, e, s, r)
 -- step (Grab:c0, a, e0, VMark:s, (c1,e1):r) = (c1, VClos (c0, e0), e1, s, r)
 -- step (Grab:c, a, e, v:s, r) = (c, a, v:e, s, r)
--- step (Return:c0, a, e0, VMark:s, (c1,e1):r) = (c1, a, e1, s, r)
--- step (Return:c0, a@(VClos (c1,e1)), e0, v:s, r) = (c1, a, v:e1, s, r)
+-- step (RetC:c0, a, e0, VMark:s, (c1,e1):r) = (c1, a, e1, s, r)
+-- step (RetC:c0, a@(VClos (c1,e1)), e0, v:s, r) = (c1, a, v:e1, s, r)
 -- step (Let:c0, a, e, s, r) = (c0, a, a:e, s, r)  
 -- step (EndLet:c0, a, v:e, s, r) = (c0, a, e, s, r) 
 -- step (Dummy:c0, a, e, s, r) = (c0, a, VMark:e, s, r) 
@@ -277,7 +289,7 @@ mkZam l = (c, VMark, [], [], []) where c = compile $ exprToDB l
 -- step ((Const x):c0, a, e, s, r) = (c0, VNum x, e, s, r)                           
 
 -- sim' :: ZAM -> IO()
--- sim' x@([], _,_,_,_) = do return()
+-- sim' x@([], _,_,_,_) = do RetC()
 -- sim' x = do
 --    let y = step x
 --    pretty y
