@@ -1,6 +1,4 @@
 
-(cntdn (double 2))
-
 (def cntdn
     (lam x 
        (if x
@@ -12,4 +10,5 @@
         (+ x x)))
 
                   
-    
+(+ (cntdn (double 2)) 69)    
+

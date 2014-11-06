@@ -196,7 +196,8 @@ genOPs ((Cur c):ins)     (ops,i) = (ops'' ++ ((0x20000000 .|. i'):ops), i'')
 genOPs ((If c):ins)     (ops,i) = (ops'' ++ ((0x01000000 .|. i'):ops), i'') 
   where (ops', i') = genOPs ins ([], i+1)
         (ops'', i'') = genOPs c (ops', i')        
-genOPs []                (ops@(0x40CE06C0:_),i) = (ops, i) 
+genOPs []                (ops@(0x40CE06C0:_),i) = (ops, i) -- no need for End after RetC 
+genOPs []                (ops@(0x01430000:_),i) = (ops, i) -- no need for End after Ret
 genOPs []                (ops,i) = (0x7FFFFFFF:ops, i+1) 
 
 
@@ -233,7 +234,11 @@ test6 = (LETREC "cntdn"
 
 
 
-
+-- (def clos
+--     (let x 5
+--     (let y 25
+--         (lam z 
+--             (- y (+ z x))))))
 
 
 

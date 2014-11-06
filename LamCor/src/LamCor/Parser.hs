@@ -119,6 +119,13 @@ parse :: String -> [Expr]
 parse s = es where (es, ts) = syntaxTop ([], clex s)  
 
 
+findMain :: [Expr] -> [Expr]
+findMain es = main++defs where 
+   (main,defs) = takeDefs (es,[])
+
+takeDefs :: ([Expr],[Expr]) -> ([Expr],[Expr])
+takeDefs (e@(DEF s _):es,es') = takeDefs (es,e:es')
+takeDefs (es,es') = (es,es')  
 
 
 compileTop :: (SymbTable,[Word32],Word32) -> [Expr] -> (SymbTable,[Word32],Word32)
@@ -137,4 +144,4 @@ compileSrc :: String -> [Word32]
 compileSrc src = reverse ins' where
    (symt,ins,cnt) = compileTop (M.empty,[],0) exprs
    (symt',ins',cnt') = compileTop (symt,[],0) exprs
-   exprs = parse src
+   exprs = findMain $ parse src
