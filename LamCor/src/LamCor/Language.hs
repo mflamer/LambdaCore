@@ -7,6 +7,7 @@ module LamCor.Language
 ,compileT
 ,genOPs
 ,exprToDB
+,tailCallOpt
 )
   where
 
@@ -30,13 +31,14 @@ data Expr = CONST Word32
           | SET Symb Word32
           ------------------------------
           | PRIM_1 POp Expr
-          | PRIM_2 POp Expr Expr          
+          | PRIM_2 POp Expr Expr 
+          | INST Word32        
           deriving (Eq, Show)
 
 
 data DBExpr = DB_CONST Word32 
-            | DB_DEF Symb DBExpr                              
-            | DB_APP [DBExpr]
+            -- | DB_DEF Symb DBExpr                              
+            | DB_APP Bool [DBExpr]
             | DB_LAM DBExpr
             | DB_LET DBExpr DBExpr
             | DB_LETREC DBExpr DBExpr
@@ -49,6 +51,7 @@ data DBExpr = DB_CONST Word32
             | DB_I Word32
             | DB_PRIM_1 POp DBExpr
             | DB_PRIM_2 POp DBExpr DBExpr
+            | DB_INST Word32          
             deriving (Eq, Show)
 
 data SF a = FF | SS a
@@ -57,9 +60,10 @@ data SF a = FF | SS a
 
 exprToDB :: SymbTable -> Expr -> DBExpr
 exprToDB symt l = db_translate [] l where
-       db_translate env (DEF s e) = DB_DEF s e' where
-           e' = db_translate env e 
-       db_translate _ (CONST n) = DB_CONST n        
+       -- db_translate env (DEF s e) = DB_DEF s e' where
+       --     e' = db_translate env e 
+       db_translate _ (CONST n) = DB_CONST n  
+       db_translate _ (INST x) = DB_INST x      
        db_translate env (LAM v e) = DB_LAM e' where
            e' = db_translate (v:env) e
        db_translate env (LET v e0 e1) = DB_LET e0' e1' where
@@ -72,7 +76,7 @@ exprToDB symt l = db_translate [] l where
            b' = db_translate env b
            t' = db_translate env t
            e' = db_translate env e     
-       db_translate env (APP ls) = DB_APP ls' where
+       db_translate env (APP ls) = DB_APP False ls' where
            ls' = map (db_translate env) ls    
        db_translate env (PRIM_1 i e) = DB_PRIM_1 i e' where
            e' = db_translate env e
@@ -83,8 +87,8 @@ exprToDB symt l = db_translate [] l where
         = case (find v env) of
             SS n -> DB_I n
             FF -> case (M.lookup v symt) of
-                Nothing   -> DB_CALL 0
-                Just addr -> DB_CALL addr
+                Nothing   -> DB_INST 0
+                Just inst -> DB_INST inst
         where 
             find v [] = FF
             find v (v':rest) | v == v' = SS 0
@@ -93,6 +97,13 @@ exprToDB symt l = db_translate [] l where
                                             SS n -> SS (n+1)
 
 
+tailCallOpt ::  DBExpr -> DBExpr
+tailCallOpt (DB_LAM e)        = (DB_LAM (tailCallOpt e))                           
+tailCallOpt (DB_LET e0 e1)    = (DB_LET e0 (tailCallOpt e1))
+tailCallOpt (DB_LETREC e0 e1) = (DB_LETREC e0 (tailCallOpt e1))
+tailCallOpt (DB_IF b t e)     = (DB_IF b (tailCallOpt t) (tailCallOpt e))
+tailCallOpt (DB_APP _ es)     = (DB_APP True es)
+tailCallOpt e                 = e
 
 
 -- ZAM --
@@ -120,6 +131,7 @@ data INST = Access Word32
           -- | Set
           | Prim POp
           | Const Word32
+          | Inst Word32
           deriving (Eq, Show)
 
 data POp = Add 
@@ -141,12 +153,13 @@ data POp = Add
 
 
 compile :: DBExpr -> [INST]
-compile (DB_DEF v e) = (compile e) ++ [Ret] 
+compile (DB_INST i) = [Inst i] 
 compile (DB_CONST k) = [Const k]
 compile (DB_I n) = [Access n]
-compile (DB_APP dbls) = [Pushmark] ++ dbls' ++ [Apply] 
-                                where dbls' = intercalate [Push] $ map compile $ reverse dbls                                      
-compile (DB_LAM dbl) = [Cur $ compile dbl ++ [RetC]] 
+compile (DB_APP False es) = [Pushmark] ++ es' ++ [Apply] 
+                                where es' = intercalate [Push] $ map compile $ reverse es 
+compile e@(DB_APP True es) = compileT e                                                                      
+compile (DB_LAM dbl) = [Cur $ compileT dbl ++ [RetC]] 
 compile (DB_LET v e) = (compile v) ++ Let:(compile e) ++ [EndLet]  
 compile (DB_LETREC v e) = Dummy:(compile v) ++ Update:(compile e) ++ [EndLet] 
 compile (DB_IF b t e) = (compile b) ++ [If $ compile t] ++ (compile e) 
@@ -159,7 +172,7 @@ compileT :: DBExpr -> [INST]
 compileT (DB_LAM dbl) = Grab:(compileT dbl)
 compileT (DB_LET v e) = (compile v) ++ Let:(compileT e)  
 compileT (DB_LETREC v e) = Dummy:(compile v) ++ Update:(compileT e)  
-compileT (DB_APP dbls) = dbls' ++ [Appterm] 
+compileT (DB_APP _ dbls) = dbls' ++ [Appterm] 
                                 where dbls' = intercalate [Push] $ map compile $ reverse dbls
 compileT l = compile l
 
@@ -189,15 +202,21 @@ genOPs (Dummy:ins)       (ops,i) = genOPs ins (0x7800F920:ops, i+1)
 genOPs (Update:ins)      (ops,i) = genOPs ins (0x40000100:ops, i+1)
 genOPs ((Const x):ins)   (ops,i) = genOPs ins ((0x80000000 .|. x):ops, i+1)  
 genOPs ((Prim Add):ins)  (ops,i) = genOPs ins (0x780C1100:ops, i+1) 
-genOPs ((Prim Sub):ins)  (ops,i) = genOPs ins (0x780C1900:ops, i+1) 
+genOPs ((Prim Sub):ins)  (ops,i) = genOPs ins (0x780C1900:ops, i+1)
+genOPs ((Inst x):ins)    (ops,i) = genOPs ins (x:ops, i+1) 
+genOPs ((Cur c):[])      (ops,i) = (ops' ++ ((0x20000000 .|. i):ops), i') 
+  where (ops', i') = genOPs c (ops, i) 
+
 genOPs ((Cur c):ins)     (ops,i) = (ops'' ++ ((0x20000000 .|. i'):ops), i'') 
   where (ops', i') = genOPs ins ([], i+1)
-        (ops'', i'') = genOPs c (ops', i')
+        (ops'', i'') = genOPs c (ops', i') 
+
 genOPs ((If c):ins)     (ops,i) = (ops'' ++ ((0x01000000 .|. i'):ops), i'') 
   where (ops', i') = genOPs ins ([], i+1)
         (ops'', i'') = genOPs c (ops', i')        
 genOPs []                (ops@(0x40CE06C0:_),i) = (ops, i) -- no need for End after RetC 
 genOPs []                (ops@(0x01430000:_),i) = (ops, i) -- no need for End after Ret
+genOPs []                (ops@(0x404C02A0:_),i) = (ops, i) -- no need for End after AppT
 genOPs []                (ops,i) = (0x7FFFFFFF:ops, i+1) 
 
 

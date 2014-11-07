@@ -144,6 +144,7 @@ bool Core::LoadRAM(std::string fileName)
 			std::cout << "Loaded " << size / 4 << " instructions... \n";
 			N = ((size / 4) & 0xFFFFFFF8) + 8;
 			E = N;
+			_E = E;
 			FA = E;
 			N += 8;
 		}

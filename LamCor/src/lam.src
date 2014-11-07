@@ -1,14 +1,18 @@
 
 (def cntdn
-    (lam x 
+    (lam x  
        (if x
           (cntdn (- x 1))
-          (0))))
+          (x))))
 
 (def double
     (lam x
         (+ x x)))
 
+(def plus5
+    (let x 5
+        (lam y
+            (+ x y))))
                   
 (+ (cntdn (double 2)) 69)    
 
