@@ -1,18 +1,25 @@
 
-(def cntdn
-    (lam x  
-       (if x
-          (cntdn (- x 1))
-          (x))))
-
-(def double
-    (lam x
-        (+ x x)))
+(def cntdn 
+    (lam x (if x
+            (cntdn (- x 1))
+            (x))))
 
 (def plus5
-    (let x 5
-        (lam y
-            (+ x y))))
+    (+ 5))
+
+(def double
+    (lam x (+ x x)))
+
+(def half
+    (lam x (/> x 1)))
+
+
+
+-- (def tests
+--     let t1 (cntdn 25)
                   
-(+ (cntdn (double 2)) 69)    
+
+-- (+ (cntdn (double (plus5 2))) 69)  
+
+(+(half 16)0)  
 

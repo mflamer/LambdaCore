@@ -17,17 +17,20 @@ type Token = String
 
 clex :: String -> [Token]
 clex (c:cs)    
-   | isSpace c = clex cs
+   | isSpace c  = clex cs   
    | isNumber c = num_token : clex rest_dig      
-   | isAlpha c = var_tok : clex rest_alp 
+   | isAlpha c  = var_tok : clex rest_alp 
+   | isParen c  = [c] : clex cs
       where 
          var_tok = c : takeWhile isIdChar cs
          rest_alp = dropWhile isIdChar cs         
          num_token = c : takeWhile isNumber cs
-         rest_dig = dropWhile isNumber cs      
+         rest_dig = dropWhile isNumber cs 
+         isParen c = (c == '(') || (c == ')')               
 clex (c:d:cs)  
    | elem cd twoCharOps = cd : clex cs
-      where cd = c : [d]              
+   | cd == "--" = clex (restComment cs) 
+      where cd = c : [d]                  
 clex (c:cs) = [c] : clex cs  
 clex [] = []  
 
@@ -35,15 +38,41 @@ isIdChar :: Char -> Bool
 isIdChar c = isAlpha c || isNumber c || (c == '_')        
 
 twoCharOps :: [Token]
-twoCharOps = ["==", "!=", ">=", "<=", "->"]
+twoCharOps = ["==","!=",">=","<=","->","~^","/>",">>","<<"]
+
+restComment :: String -> String 
+restComment ('\n':ss) = ss
+restComment (s:ss)    = restComment ss
+restComment s         = s
 
 
 
+-- keywords = ["def", "data", "let", "letrec",binaryOpsif", "lam", "Pack"]
 
--- keywords = ["def", "data", "let", "letrec", "case", "if", "lam", "Pack"]
+unaryOps :: M.Map String POp
+unaryOps = M.fromList
+   [("~",Not)]
 
-
-
+binaryOps :: M.Map String POp
+binaryOps = M.fromList
+   [("+",Add) 
+   ,("-",Sub) 
+   ,("*",Mul) 
+   ,("&",And) 
+   ,("|",Or)   
+   ,("^",Xor) 
+   ,("~^",Xnor)
+   ,("/>",Ashr)
+   ,(">>",Lshr)
+   ,("<<",Lshl)
+   ,("==",Eq)
+   ,("!=",Ne) 
+   ,(">",Gt) 
+   ,("<",Lt) 
+   ,(">=",Gte)
+   ,("<=",Lte) 
+   ,("abv",Abv)
+   ,("bel",Bel)]
 
 
 syntaxTop :: ([Expr],[Token]) -> ([Expr],[Token])   
@@ -75,20 +104,21 @@ expr ("letrec":s:ts)  = ([LETREC s e e'],ts'') where
 expr ("if":ts)     = ([IF eb et ef],ts''') where
    (eb:_,ts')   = expr ts
    (et:_,ts'')  = expr ts'
-   (ef:_,ts''') = expr ts''
-expr ("+":ts)      = let 
-   (e:_, ts'@(t:tt)) = expr ts
-   (e':_,ts'')       = expr ts' 
-      in case t of ")" -> ([LAM "y" (PRIM_2 Add e (VAR "y"))],ts'')
-                   x   -> ([PRIM_2 Add e e'],ts'')
-expr ("-":ts)      = let 
-   (e:_, ts'@(t:tt)) = expr ts
-   (e':_,ts'')       = expr ts' 
-      in case t of ")" -> ([LAM "y" (PRIM_2 Sub e (VAR "y"))],ts'')
-                   x   -> ([PRIM_2 Sub e e'],ts'')                         
+   (ef:_,ts''') = expr ts''                       
 expr (t@(c:cs):ts) 
+   | M.member t binaryOps = prim2 (t:ts)
    | isNumber c = ([CONST (read t :: Word32)],ts)
-   | otherwise  = ([VAR t],ts)   
+   | otherwise  = ([VAR t],ts)
+
+
+prim2 :: [Token] -> ([Expr],[Token])
+prim2 (t:ts) = case ts' of
+   [] -> ([LAM "y" (PRIM_2 op e1 (VAR "y"))],ts')
+   x       -> ([PRIM_2 op e1 e2],ts'')   
+   where op          = binaryOps M.! t
+         (e1:_,ts')  = expr ts
+         (e2:_,ts'') = expr ts'
+
 
 
 split :: ([Token],[Token]) -> Int -> ([Token],[Token])

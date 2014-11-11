@@ -77,6 +77,57 @@ void PrintInst(unsigned int inst, unsigned short PC)
 				case SUB:
 					std::cout << PC << ": \t" << "SUB \n";
 					break;
+				case MUL:
+					std::cout << PC << ": \t" << "MUL \n";
+					break;
+				case AND:
+					std::cout << PC << ": \t" << "AND \n";
+					break;
+				case OR:
+					std::cout << PC << ": \t" << "OR \n";
+					break;
+				case NOT:
+					std::cout << PC << ": \t" << "NOT \n";
+					break;
+				case XOR:
+					std::cout << PC << ": \t" << "XOR \n";
+					break;
+				case XNOR:
+					std::cout << PC << ": \t" << "XNOR \n";
+					break;
+				case ASHR:
+					std::cout << PC << ": \t" << "ASHR \n";
+					break;
+				case LSHR:
+					std::cout << PC << ": \t" << "LSHR \n";
+					break;
+				case LSHL:
+					std::cout << PC << ": \t" << "LSHR \n";
+					break;
+				case EQ:
+					std::cout << PC << ": \t" << "LSHR \n";
+					break;
+				case NE:
+					std::cout << PC << ": \t" << "LSHR \n";
+					break;
+				case GT:
+					std::cout << PC << ": \t" << "LSHR \n";
+					break;
+				case LT:
+					std::cout << PC << ": \t" << "LSHR \n";
+					break;
+				case GTE:
+					std::cout << PC << ": \t" << "LSHR \n";
+					break;
+				case LTE:
+					std::cout << PC << ": \t" << "LSHR \n";
+					break;
+				case ABV:
+					std::cout << PC << ": \t" << "LSHR \n";
+					break;
+				case BEL:
+					std::cout << PC << ": \t" << "LSHR \n";
+					break;
 				default:
 					std::cout << "Bad instruction encoding! \n";
 					break;
@@ -266,22 +317,60 @@ bool Core::Step(bool printState)
 				case 3:// SUB
 					ALU = A - argS[arg_TOS];
 					break;
-				case 4:// AND
+				case 4:// MUL
+					ALU = A * argS[arg_TOS];
+					break;
+				case 5:// AND
 					ALU = A & argS[arg_TOS];
 					break;
-				case 5:// OR
+				case 6:// OR
 					ALU = A | argS[arg_TOS];
-					break;
-				case 6:// XOR
-					ALU = A ^ argS[arg_TOS];
 					break;
 				case 7:// NOT
 					ALU = ~A;
 					break;
+				case 8:// XOR
+					ALU = A ^ argS[arg_TOS];
+					break;
+				case 9:// XNOR
+					ALU = ~(A ^ argS[arg_TOS]);
+					break;
+				case 10:// ASHR
+					ALU = (int)A >> argS[arg_TOS];
+					break;
+				case 11:// LSHR
+					ALU = (unsigned int)A >> argS[arg_TOS];
+					break;
+				case 12:// LSHL
+					ALU = A << argS[arg_TOS];
+					break;
+				case 13:// EQ
+					ALU = A == argS[arg_TOS];
+					break;
+				case 14:// NE
+					ALU = A != argS[arg_TOS];
+					break;
+				case 15:// GT
+					ALU = A > argS[arg_TOS];
+					break;		
+				case 16:// LT
+					ALU = A < argS[arg_TOS];
+					break;		
+				case 17:// GTE
+					ALU = A >= argS[arg_TOS];
+					break;		
+				case 18:// LTE
+					ALU = A <= argS[arg_TOS];
+					break;		
+				case 19:// ABV
+					ALU = ((unsigned int)A) > ((unsigned int)argS[arg_TOS]);
+					break;		
+				case 20:// BEL
+					ALU = ((unsigned int)A) < ((unsigned int)argS[arg_TOS]);
+					break;		
 				case 31:
 					ALU = MARK_VAL;
 					break;
-
 				default:
 					std::cout << "Bad instruction encoding in ALU \n";
 					break;
@@ -393,12 +482,11 @@ bool Core::Step(bool printState)
 		
 		}
 
-		if(!A_stall && !F_stall)
+		if(pattern == PAT_ALU)
 		{
-			
-			if(pattern == PAT_ALU)
-			{
-			// _E ///////////////////////////////////////////////////////////////////////
+			if(!A_stall && !F_stall)
+			{			
+				// _E ///////////////////////////////////////////////////////////////////////
 				switch((inst & E_MASK) >> E_SHIFT)
 				{
 				case 0:// inc above		
@@ -444,155 +532,153 @@ bool Core::Step(bool printState)
 				default:
 					std::cout << "Bad instruction encoding in _E \n";
 					break;
-				}////////////////////////////////////////////////////////////////////////////	
-			}
+				}////////////////////////////////////////////////////////////////////////////				
 			
-		}
+			}
 
-		if(RAM_W) 
-		{
-			std::copy(F, F + 8, RAM + (FA & FRAME_MASK));
-		}
-
+			if(RAM_W) 
+			{
+				std::copy(F, F + 8, RAM + (FA & FRAME_MASK));
+			}
 			
 				
-		if(!A_stall && (!RAM_R || !RAM_W))
-		{					
-			
-			// E inc /////////////////////////////////////////////////////////////////////
-			switch((inst & E_INC_MASK) >> E_INC_SHIFT)
-			{
-			case 0:// no change				
-				break;
-			case 1://
-				if((_E & CELL_MASK) == 7)
-				{						
-					RAM_W = true;
-					_E = N;
-					link = E;
-				}
-				else _E = _E + 1;
-				break;
-			case 2: // conditionaly inc E 
-				if(argS[arg_TOS] != MARK_VAL)
+			if(!A_stall && (!RAM_R || !RAM_W))
+			{			
+				// E inc /////////////////////////////////////////////////////////////////////
+				switch((inst & E_INC_MASK) >> E_INC_SHIFT)
 				{
+				case 0:// no change				
+					break;
+				case 1://
 					if((_E & CELL_MASK) == 7)
-					{							
-						RAM_W = true;							
-						_E = N;							
+					{						
+						RAM_W = true;
+						_E = N;
 						link = E;
 					}
-					_E = _E + 1;
-				}
-				break;
-			case 3:
-				_E = _E - 1;
-				break;			
-			default:
-				std::cout << "Bad instruction encoding in retSinc \n";
-				break;
-			}//////////////////////////////////////////////////////////////////////////////
-		}
-
-		if(!A_stall && !F_stall)
-		{
-
-			// F ////////////////////////////////////////////////////////////////////////
-			switch((inst & F_MASK) >> F_SHIFT)
-			{
-			case 0:// no change				
-				break;
-			case 1://
-				if(argS[arg_TOS] != MARK_VAL) 
-					F[_E & CELL_MASK] = argS[arg_TOS];
-				break;
-			case 2://
-				F[_E & CELL_MASK] = _A;
-				break;
-			case 3:
-				//
-				break;			
-			default:
-				std::cout << "Bad instruction encoding in F \n";
-				break;
-			}/////////////////////////////////////////////////////////////////////////////
-		}
-
-		if(!A_stall && !(RAM_R && RAM_W))
-		{
-			// argS inc ///////////////////////////////////////////////////////////////////////
-			switch((inst & ARGS_INC_MASK) >> ARGS_INC_SHIFT)
-			{
-			case 0:// no change				
-				_arg_TOS = arg_TOS;
-				break;
-			case 1://
-				_arg_TOS = arg_TOS + 1;
-				break;
-			case 2:	
-				//
-				break;
-			case 3:
-				_arg_TOS = arg_TOS -1;
-				break;			
-			default:
-				std::cout << "Bad instruction encoding in argSinc \n";
-				break;
-			}//////////////////////////////////////////////////////////////////////////////////
-			_arg_TOS &= 0x1F; //we need the stacks to wrap
-	
-
-			if(inst & ARGS_MASK)// _A -> argS
-			{
-				argS[_arg_TOS] = _A;
+					else _E = _E + 1;
+					break;
+				case 2: // conditionaly inc E 
+					if(argS[arg_TOS] != MARK_VAL)
+					{
+						if((_E & CELL_MASK) == 7)
+						{							
+							RAM_W = true;							
+							_E = N;							
+							link = E;
+						}
+						_E = _E + 1;
+					}
+					break;
+				case 3:
+					_E = _E - 1;
+					break;			
+				default:
+					std::cout << "Bad instruction encoding in retSinc \n";
+					break;
+				}//////////////////////////////////////////////////////////////////////////////
 			}
 
-			// retS inc ///////////////////////////////////////////////////////////////////////
-			switch((inst & RETS_INC_MASK) >> RETS_INC_SHIFT)
+			if(!A_stall && !F_stall)
 			{
-			case 0:// no change	
-				_ret_TOS = ret_TOS;
-				break;
-			case 1://
-				_ret_TOS = ret_TOS + 1;
-				break;
-			case 2:	
-				if(argS[arg_TOS] == MARK_VAL)
-					_ret_TOS = ret_TOS - 1;
-				break;
-			case 3:
-				_ret_TOS = ret_TOS -1;
-				break;			
-			default:
-				std::cout << "Bad instruction encoding in retSinc \n";
-				break;
-			}//////////////////////////////////////////////////////////////////////////////////
-			_ret_TOS &= 0x1F; //we need the stacks to wrap
 
-			// retS ///////////////////////////////////////////////////////////////////////
-			switch((inst & RETS_MASK) >> RETS_SHIFT)
-			{
-			case 0:// no change				
-				break;
-			case 1://
-				retS[_ret_TOS] = (E << A_ENV_SHIFT) | PCPlusOne;
-				break;
-			case 2://
-				retS[_ret_TOS] = PCPlusOne;
-				break;
-			case 3:
-				retS[_ret_TOS] = _A;
-				break;			
-			default:
-				std::cout << "Bad instruction encoding in _retS \n";
-				break;
-			}///////////////////////////////////////////////////////////////////////////////
-
+				// F ////////////////////////////////////////////////////////////////////////
+				switch((inst & F_MASK) >> F_SHIFT)
+				{
+				case 0:// no change				
+					break;
+				case 1://
+					if(argS[arg_TOS] != MARK_VAL) 
+						F[_E & CELL_MASK] = argS[arg_TOS];
+					break;
+				case 2://
+					F[_E & CELL_MASK] = _A;
+					break;
+				case 3:
+					//
+					break;			
+				default:
+					std::cout << "Bad instruction encoding in F \n";
+					break;
+				}/////////////////////////////////////////////////////////////////////////////
+			}
 		}
-			
 		
+
+			if(!A_stall && !(RAM_R && RAM_W))
+			{
+				// argS inc ///////////////////////////////////////////////////////////////////////
+				switch((inst & ARGS_INC_MASK) >> ARGS_INC_SHIFT)
+				{
+				case 0:// no change				
+					_arg_TOS = arg_TOS;
+					break;
+				case 1://
+					_arg_TOS = arg_TOS + 1;
+					break;
+				case 2:	
+					//
+					break;
+				case 3:
+					_arg_TOS = arg_TOS -1;
+					break;			
+				default:
+					std::cout << "Bad instruction encoding in argSinc \n";
+					break;
+				}//////////////////////////////////////////////////////////////////////////////////
+				_arg_TOS &= 0x1F; //we need the stacks to wrap
+	
+
+				if(inst & ARGS_MASK)// _A -> argS
+				{
+					argS[_arg_TOS] = _A;
+				}
+
+				// retS inc ///////////////////////////////////////////////////////////////////////
+				switch((inst & RETS_INC_MASK) >> RETS_INC_SHIFT)
+				{
+				case 0:// no change	
+					_ret_TOS = ret_TOS;
+					break;
+				case 1://
+					_ret_TOS = ret_TOS + 1;
+					break;
+				case 2:	
+					if(argS[arg_TOS] == MARK_VAL)
+						_ret_TOS = ret_TOS - 1;
+					break;
+				case 3:
+					_ret_TOS = ret_TOS -1;
+					break;			
+				default:
+					std::cout << "Bad instruction encoding in retSinc \n";
+					break;
+				}//////////////////////////////////////////////////////////////////////////////////
+				_ret_TOS &= 0x1F; //we need the stacks to wrap
+
+				// retS ///////////////////////////////////////////////////////////////////////
+				switch((inst & RETS_MASK) >> RETS_SHIFT)
+				{
+				case 0:// no change				
+					break;
+				case 1://
+					retS[_ret_TOS] = (E << A_ENV_SHIFT) | PCPlusOne;
+					break;
+				case 2://
+					retS[_ret_TOS] = PCPlusOne;
+					break;
+				case 3:
+					retS[_ret_TOS] = _A;
+					break;			
+				default:
+					std::cout << "Bad instruction encoding in _retS \n";
+					break;
+				}///////////////////////////////////////////////////////////////////////////////
+
+			}
 		
-	}
+		}
+	
 
 
 	

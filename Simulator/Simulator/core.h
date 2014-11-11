@@ -67,24 +67,43 @@
 #define		CALL	0x01A10000
 #define		JUMP	0x01800000		
 #define	    RET		0x01430000	
-//#define	EQ			
-//#define	NE			
-//#define	LT			
-//#define	GT			
-//#define	LTE			
-//#define	GTE			
-//#define	ABV			
-//#define	BEL			
+
 #define 	ADD		0x780C1100	
-#define		SUB		0x780C1900			
-//#define	AND     
-//#define	OR		
-//#define	XOR		
-//#define	NOT		
-//#define	XNOR	
-//#define	ASHR	
-//#define	LSHR	
-//#define	LSHL	
+#define		SUB		0x780C1900
+#define	    MUL		0x780C2100
+#define		AND		0x780C2900
+#define		OR		0x780C3100
+#define		NOT		0x780C3900
+#define		XOR		0x780C4100
+#define		XNOR	0x780C4900
+#define		ASHR	0x780C5100
+#define		LSHR	0x780C5900
+#define		LSHL	0x780C6100
+#define		EQ		0x780C6900
+#define		NE		0x780C7100
+#define		GT		0x780C7900
+#define		LT		0x780C8100
+#define		GTE		0x780C8900
+#define		LTE		0x780C9100
+#define		ABV		0x780C9900
+#define		BEL		0x780CA100
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 #define		INITVAL		0x00000000
 #define 	MARK_VAL	0x80000000
