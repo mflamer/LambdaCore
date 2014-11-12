@@ -104,9 +104,5 @@ argTOS = 1 	 retTOS = 31 	 E = 48
 
 
 This simple language is only intended to be used for testing and eventually to bootstrap other languages. I'm currently considering hosting OCAML byte code and or Shen, as these fit the execution model nicely, would be relativly easy to get running and might actually get used. 
-=======
-LambdaCore
-==========
 
-Small efficient processor for strict evaluation of lambda calculus 
 >>>>>>> 66227b848be8faff9309bfadccd4a29c02edb054
