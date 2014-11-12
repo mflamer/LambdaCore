@@ -170,7 +170,7 @@ compileTop (symt,ins,pc) (e:es) = compileTop (compileExpr (symt,ins,pc) e) es
 
 compileExpr :: (SymbTable,[Word32],Word32)-> Expr -> (SymbTable,[Word32],Word32)
 compileExpr (symt,ins,pc) e = (symt,ins',pc') where
-   (ins',pc') = genOPs (compile $ tailCallOpt $exprToDB symt e) (ins,pc)
+   (ins',pc') = genOPs (compile $ tailCallOpt True $ exprToDB symt e) (ins,pc)
 
 
 compileSrc :: String -> [Word32]

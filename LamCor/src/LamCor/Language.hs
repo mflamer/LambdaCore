@@ -36,8 +36,7 @@ data Expr = CONST Word32
           deriving (Eq, Show)
 
 
-data DBExpr = DB_CONST Word32 
-            -- | DB_DEF Symb DBExpr                              
+data DBExpr = DB_CONST Word32                             
             | DB_APP Bool [DBExpr]
             | DB_LAM DBExpr
             | DB_LET DBExpr DBExpr
@@ -60,8 +59,6 @@ data SF a = FF | SS a
 
 exprToDB :: SymbTable -> Expr -> DBExpr
 exprToDB symt l = db_translate [] l where
-       -- db_translate env (DEF s e) = DB_DEF s e' where
-       --     e' = db_translate env e 
        db_translate _ (CONST n) = DB_CONST n  
        db_translate _ (INST x) = DB_INST x      
        db_translate env (LAM v e) = DB_LAM e' where
@@ -97,13 +94,14 @@ exprToDB symt l = db_translate [] l where
                                             SS n -> SS (n+1)
 
 
-tailCallOpt ::  DBExpr -> DBExpr
-tailCallOpt (DB_LAM e)        = (DB_LAM (tailCallOpt e))                           
-tailCallOpt (DB_LET e0 e1)    = (DB_LET e0 (tailCallOpt e1))
-tailCallOpt (DB_LETREC e0 e1) = (DB_LETREC e0 (tailCallOpt e1))
-tailCallOpt (DB_IF b t e)     = (DB_IF b (tailCallOpt t) (tailCallOpt e))
-tailCallOpt (DB_APP _ es)     = (DB_APP True es)
-tailCallOpt e                 = e
+tailCallOpt :: Bool -> DBExpr -> DBExpr
+tailCallOpt _ (DB_LAM e)        = (DB_LAM (tailCallOpt False e))                           
+tailCallOpt _ (DB_LET e0 e1)    = (DB_LET e0 (tailCallOpt False e1))
+tailCallOpt _ (DB_LETREC e0 e1) = (DB_LETREC e0 (tailCallOpt False e1))
+tailCallOpt _ (DB_IF b t e)     = (DB_IF b (tailCallOpt False t) (tailCallOpt False e))
+tailCallOpt True (DB_APP _ es)  = (DB_APP False es)
+tailCallOpt False (DB_APP _ es)  = (DB_APP True es)
+tailCallOpt _ e                   = e
 
 
 -- ZAM --

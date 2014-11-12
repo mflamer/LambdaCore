@@ -12,14 +12,9 @@
 
 (def half
     (lam x (/> x 1)))
-
-
-
--- (def tests
---     let t1 (cntdn 25)
                   
 
--- (+ (cntdn (double (plus5 2))) 69)  
+(+ (cntdn (double (plus5 2))) 69)  
 
-(+(half 16)0)  
+  
 
