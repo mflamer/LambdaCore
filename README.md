@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 Lambda Core
 ==
 The LambdaCore is a processor based on the Zinc Abstract Machine which was the original execution model for the CAML language. There is an excellent paper describing the ZAM at http://www.enseignement.polytechnique.fr/profs/informatique/Benjamin.Werner/INF565/ZINC.pdf. The idea is to create a small, fast and efficent processor for strict evaluation of functional languages like ML, LISP, etc. Basicly, I dont see why embedded systems must be limited to C or FORTH for software development. The instruction set is about 80% done and a simulator is running. The next step is to finsh the definition of the last few instructions and start on the verilog. 
@@ -103,3 +104,9 @@ argTOS = 1 	 retTOS = 31 	 E = 48
 
 
 This simple language is only intended to be used for testing and eventually to bootstrap other languages. I'm currently considering hosting OCAML byte code and or Shen, as these fit the execution model nicely, would be relativly easy to get running and might actually get used. 
+=======
+LambdaCore
+==========
+
+Small efficient processor for strict evaluation of lambda calculus 
+>>>>>>> 66227b848be8faff9309bfadccd4a29c02edb054
