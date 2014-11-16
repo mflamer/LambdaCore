@@ -162,15 +162,14 @@ compileTop :: (SymbTable,[Word32],Word32) -> [Expr] -> (SymbTable,[Word32],Word3
 compileTop env [] = env
 compileTop (symt,ins,pc) ((DEF s e):es) = compileTop (symt'',(init ins')++ins,pc') es where
    (symt',ins',pc') = compileExpr (symt,[],pc) e
-   symt''           = M.insertWith (\n o -> o) s (last ins') symt'
-   
+   symt''           = M.insertWith (\n o -> o) s (last ins') symt'  
 
 compileTop (symt,ins,pc) (e:es) = compileTop (compileExpr (symt,ins,pc) e) es 
     
 
 compileExpr :: (SymbTable,[Word32],Word32)-> Expr -> (SymbTable,[Word32],Word32)
 compileExpr (symt,ins,pc) e = (symt,ins',pc') where
-   (ins',pc') = genOPs (compile $ tailCallOpt True $ exprToDB symt e) (ins,pc)
+   (ins',pc') = genOPs (packOpt (compile $ tailCallOpt True $ exprToDB symt e)) (ins,pc)
 
 
 compileSrc :: String -> [Word32]

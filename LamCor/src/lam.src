@@ -14,7 +14,15 @@
     (lam x (/> x 1)))
                   
 
-(+ (cntdn (double (plus5 2))) 69)  
+(==(cntdn(double(plus5 2)))0)  
 
-  
+-- (def tests (lam x 
+--     (let t_add (==(+ 10 20)30) 
+--     (let t_sub (==(- 20 10)10)
+--     (let t_mul (==(* 10 10)100)
+--     (let t_and (==(& 65535 43690)43690)
+--     (let t_or  (==(| 21845 43690)65535)
+--     --(let t_not (==(~ 65535)-65536)     
+--         (+ t_add(+ t_sub(+ t_mul(+ t_and t_or))))))))))))  
 
+-- (== (tests 0) 5)

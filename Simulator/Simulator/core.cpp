@@ -102,31 +102,31 @@ void PrintInst(unsigned int inst, unsigned short PC)
 					std::cout << PC << ": \t" << "LSHR \n";
 					break;
 				case LSHL:
-					std::cout << PC << ": \t" << "LSHR \n";
+					std::cout << PC << ": \t" << "LSHL \n";
 					break;
 				case EQ:
-					std::cout << PC << ": \t" << "LSHR \n";
+					std::cout << PC << ": \t" << "EQ \n";
 					break;
 				case NE:
-					std::cout << PC << ": \t" << "LSHR \n";
+					std::cout << PC << ": \t" << "NE \n";
 					break;
 				case GT:
-					std::cout << PC << ": \t" << "LSHR \n";
+					std::cout << PC << ": \t" << "GT \n";
 					break;
 				case LT:
-					std::cout << PC << ": \t" << "LSHR \n";
+					std::cout << PC << ": \t" << "LT \n";
 					break;
 				case GTE:
-					std::cout << PC << ": \t" << "LSHR \n";
+					std::cout << PC << ": \t" << "GTE \n";
 					break;
 				case LTE:
-					std::cout << PC << ": \t" << "LSHR \n";
+					std::cout << PC << ": \t" << "LTE \n";
 					break;
 				case ABV:
-					std::cout << PC << ": \t" << "LSHR \n";
+					std::cout << PC << ": \t" << "ABV \n";
 					break;
 				case BEL:
-					std::cout << PC << ": \t" << "LSHR \n";
+					std::cout << PC << ": \t" << "BEL \n";
 					break;
 				default:
 					std::cout << "Bad instruction encoding! \n";
@@ -278,7 +278,8 @@ bool Core::Step(bool printState)
 
 	if(link)
 	{
-		F[0] = link;
+		F[0] = F[0] | (link & F_LINK_MASK);
+		//F[0] = F[0] + F_CNT_INC;
 		link = 0;
 	}
 
@@ -390,7 +391,7 @@ bool Core::Step(bool printState)
 				switch((inst & A_MASK)>>A_SHIFT)
 				{
 				case 0:// no change
-					_A = A;
+					_A = ALU;
 					break;
 				case 1:// [E-n] -> A
 					if(Fidx <= 0)// need to fetch the next frame down the chain
@@ -399,7 +400,7 @@ bool Core::Step(bool printState)
 							RAM_W = true;
 						RAM_R = true;
 						A_stall = true;
-						_FA = F[0]; // Set the next frame to jump to
+						_FA = F[0] & F_LINK_MASK; // Set the next frame to jump to
 						DB = DB - FA_cell; 
 					}
 					else
@@ -410,12 +411,14 @@ bool Core::Step(bool printState)
 					break;
 				case 2:// pc -> A.c, E -> A.e
 					_A = argS[arg_TOS] == MARK_VAL ? (E << A_ENV_SHIFT) | PCPlusOne : A;
+					F[0] = F[0] + F_CNT_INC;
 					break;
 				case 3:
 					_A = inst & LIT_MASK;
 					break;
 				case 4:
-					_A = (E << A_ENV_SHIFT) | (inst & A_CODE_MASK);						
+					_A = (E << A_ENV_SHIFT) | (inst & A_CODE_MASK);	
+					F[0] = F[0] + F_CNT_INC;
 					break;
 				case 5:
 					_A = argS[arg_TOS] == MARK_VAL ? retS[ret_TOS] : A;
@@ -424,7 +427,7 @@ bool Core::Step(bool printState)
 					_A = inst & A_CODE_MASK;
 					break;
 				case 7:
-					_A = ALU;
+					_A = ALU;//E_frame;
 					break;			
 				default:
 					std::cout << "Bad instruction encoding in _A \n";
@@ -492,9 +495,9 @@ bool Core::Step(bool printState)
 				case 0:// inc above		
 					_E = E;
 					break;
-				case 1://
-					_E = N;						
-					RAM_W = true;						
+				case 1://					
+					_E = N;
+					RAM_W = true;					
 					link = (_A & A_ENV_MASK) >> A_ENV_SHIFT;
 					break;
 				case 2://
@@ -527,6 +530,9 @@ bool Core::Step(bool printState)
 						RAM_R = true;
 						late_write_val = argS[arg_TOS];//should be able to use arg_TOS - 1 here instead
 						late_write_F = true; 
+
+						if(F[0] & F_CNT_MASK == 0) //drop current env
+							_N = E_frame;
 					}
 					break;			
 				default:

@@ -8,6 +8,7 @@ module LamCor.Language
 ,genOPs
 ,exprToDB
 ,tailCallOpt
+,packOpt
 )
   where
 
@@ -104,6 +105,14 @@ tailCallOpt False (DB_APP _ es)  = (DB_APP True es)
 tailCallOpt _ e                   = e
 
 
+packOpt :: [INST] -> [INST]
+packOpt ((Inst a):Appterm:is) = (Jump a):(packOpt is)
+packOpt ((Cur a):is) = (Cur (packOpt a)):(packOpt is) 
+packOpt ((If a):is) = (If (packOpt a)):(packOpt is)  
+packOpt (i:is) = i:(packOpt is)
+packOpt [] = []
+
+
 -- ZAM --
 
 data INST = Access Word32
@@ -123,7 +132,7 @@ data INST = Access Word32
           ------------ Absraction
           | If [INST]
           | Call Word32
-          -- | Jump
+          | Jump Word32
           | Ret 
           -- | Get
           -- | Set
@@ -168,6 +177,7 @@ compile (DB_LET v e) = (compile v) ++ Let:(compile e) ++ [EndLet]
 compile (DB_LETREC v e) = Dummy:(compile v) ++ Update:(compile e) ++ [EndLet] 
 compile (DB_IF b t e) = (compile b) ++ [If $ compile t] ++ (compile e) 
 compile (DB_CALL a) = [Call a]
+compile (DB_JUMP a) = [Jump a]
 compile (DB_PRIM_1 i e) = (compile e) ++ [Prim i]
 compile (DB_PRIM_2 i e0 e1) = (compile e1) ++ Push:(compile e0) ++ [Prim i]                                
 
@@ -195,9 +205,10 @@ genOPs ((Access db):ins) (ops,i)  = genOPs ins ((0x48000000 .|. (db .&. 0x000000
 genOPs (Appterm:ins)     (ops,i)  = genOPs ins (0x404C02A0:ops, i+1)
 genOPs (Apply:ins)       (ops,i)  = genOPs ins (0x405D02A0:ops, i+1)    
 genOPs (Push:ins)        (ops,i)  = genOPs ins (0x44040000:ops, i+1)    
-genOPs (Pushmark:ins)    (ops,i)  = genOPs ins (0x7C04F800:ops, i+1)                               
+genOPs (Pushmark:ins)    (ops,i)  = genOPs ins (0x4404F800:ops, i+1)                               
 genOPs (Grab:ins)        (ops,i)  = genOPs ins (0x588E04C0:ops, i+1)
-genOPs ((Call a):ins)    (ops,i)  = genOPs ins ((0x01A10000 .|. a):ops, i+1)  
+genOPs ((Call a):ins)    (ops,i)  = genOPs ins ((0x01A10000 .|. a):ops, i+1) 
+genOPs ((Jump a):ins)    (ops,i)  = genOPs ins ((0x01800000 .|. (0xFFFF .&. a)):ops, i+1)  
 genOPs (Ret:ins)         (ops,i)  = genOPs ins (0x01430000:ops, i+1)   
 genOPs (RetC:ins)        (ops,i)  = genOPs ins (0x40CE06C0:ops, i+1) 
 genOPs (Let:ins)         (ops,i)  = genOPs ins (0x40000120:ops, i+1)
@@ -205,25 +216,25 @@ genOPs (EndLet:ins)      (ops,i)  = genOPs ins (0x40000060:ops, i+1)
 genOPs (Dummy:ins)       (ops,i)  = genOPs ins (0x7800F920:ops, i+1)
 genOPs (Update:ins)      (ops,i)  = genOPs ins (0x40000100:ops, i+1)
 genOPs ((Const x):ins)   (ops,i)  = genOPs ins ((0x80000000 .|. x):ops, i+1)  
-genOPs ((Prim Add):ins)  (ops,i)  = genOPs ins (0x780C1100:ops, i+1) 
-genOPs ((Prim Sub):ins)  (ops,i)  = genOPs ins (0x780C1900:ops, i+1)
-genOPs ((Prim Mul):ins)  (ops,i)  = genOPs ins (0x780C2100:ops, i+1)
-genOPs ((Prim And):ins)  (ops,i)  = genOPs ins (0x780C2900:ops, i+1)
-genOPs ((Prim Or):ins)   (ops,i)  = genOPs ins (0x780C3100:ops, i+1)
-genOPs ((Prim Not):ins)  (ops,i)  = genOPs ins (0x780C3900:ops, i+1)
-genOPs ((Prim Xor):ins)  (ops,i)  = genOPs ins (0x780C4100:ops, i+1)
-genOPs ((Prim Xnor):ins) (ops,i)  = genOPs ins (0x780C4900:ops, i+1)
-genOPs ((Prim Ashr):ins) (ops,i)  = genOPs ins (0x780C5100:ops, i+1)
-genOPs ((Prim Lshr):ins) (ops,i)  = genOPs ins (0x780C5900:ops, i+1)
-genOPs ((Prim Lshl):ins) (ops,i)  = genOPs ins (0x780C6100:ops, i+1)
-genOPs ((Prim Eq):ins)   (ops,i)  = genOPs ins (0x780C6900:ops, i+1)
-genOPs ((Prim Ne):ins)   (ops,i)  = genOPs ins (0x780C7100:ops, i+1)
-genOPs ((Prim Gt):ins)   (ops,i)  = genOPs ins (0x780C7900:ops, i+1)
-genOPs ((Prim Lt):ins)   (ops,i)  = genOPs ins (0x780C8100:ops, i+1)
-genOPs ((Prim Gte):ins)  (ops,i)  = genOPs ins (0x780C8900:ops, i+1)
-genOPs ((Prim Lte):ins)  (ops,i)  = genOPs ins (0x780C9100:ops, i+1)
-genOPs ((Prim Abv):ins)  (ops,i)  = genOPs ins (0x780C9900:ops, i+1)
-genOPs ((Prim Bel):ins)  (ops,i)  = genOPs ins (0x780CA100:ops, i+1)
+genOPs ((Prim Add):ins)  (ops,i)  = genOPs ins (0x400C1000:ops, i+1) 
+genOPs ((Prim Sub):ins)  (ops,i)  = genOPs ins (0x400C1800:ops, i+1)
+genOPs ((Prim Mul):ins)  (ops,i)  = genOPs ins (0x400C2000:ops, i+1)
+genOPs ((Prim And):ins)  (ops,i)  = genOPs ins (0x400C2800:ops, i+1)
+genOPs ((Prim Or):ins)   (ops,i)  = genOPs ins (0x400C3000:ops, i+1)
+genOPs ((Prim Not):ins)  (ops,i)  = genOPs ins (0x40003800:ops, i+1)
+genOPs ((Prim Xor):ins)  (ops,i)  = genOPs ins (0x400C4000:ops, i+1)
+genOPs ((Prim Xnor):ins) (ops,i)  = genOPs ins (0x400C4800:ops, i+1)
+genOPs ((Prim Ashr):ins) (ops,i)  = genOPs ins (0x400C5000:ops, i+1)
+genOPs ((Prim Lshr):ins) (ops,i)  = genOPs ins (0x400C5800:ops, i+1)
+genOPs ((Prim Lshl):ins) (ops,i)  = genOPs ins (0x400C6000:ops, i+1)
+genOPs ((Prim Eq):ins)   (ops,i)  = genOPs ins (0x400C6800:ops, i+1)
+genOPs ((Prim Ne):ins)   (ops,i)  = genOPs ins (0x400C7000:ops, i+1)
+genOPs ((Prim Gt):ins)   (ops,i)  = genOPs ins (0x400C7800:ops, i+1)
+genOPs ((Prim Lt):ins)   (ops,i)  = genOPs ins (0x400C8000:ops, i+1)
+genOPs ((Prim Gte):ins)  (ops,i)  = genOPs ins (0x400C8800:ops, i+1)
+genOPs ((Prim Lte):ins)  (ops,i)  = genOPs ins (0x400C9000:ops, i+1)
+genOPs ((Prim Abv):ins)  (ops,i)  = genOPs ins (0x400C9800:ops, i+1)
+genOPs ((Prim Bel):ins)  (ops,i)  = genOPs ins (0x400CA000:ops, i+1)
 
 genOPs ((Inst x):ins)    (ops,i) = genOPs ins (x:ops, i+1) 
 genOPs ((Cur c):[])      (ops,i) = (ops' ++ ((0x20000000 .|. i):ops), i') 
@@ -232,6 +243,10 @@ genOPs ((Cur c):[])      (ops,i) = (ops' ++ ((0x20000000 .|. i):ops), i')
 genOPs ((Cur c):ins)     (ops,i) = (ops'' ++ ((0x20000000 .|. i'):ops), i'') 
   where (ops', i') = genOPs ins ([], i+1)
         (ops'', i'') = genOPs c (ops', i') 
+
+-- genOPs ((Jump c):ins)     (ops,i) = (ops'' ++ ((0x01800000 .|. i'):ops), i'') 
+--   where (ops', i') = genOPs ins ([], i+1)
+--         (ops'', i'') = genOPs c (ops', i')        
 
 genOPs ((If c):ins)     (ops,i) = (ops'' ++ ((0x01000000 .|. i'):ops), i'') 
   where (ops', i') = genOPs ins ([], i+1)

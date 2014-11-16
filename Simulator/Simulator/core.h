@@ -46,6 +46,13 @@
 #define A_ENV_SHIFT		16
 #define A_CODE_MASK		0x0000FFFF
 
+#define F_CNT_MASK		0xFFFF0000
+#define F_CNT_INC		0x00010000
+#define F_CNT_SHIFT		16
+#define F_LINK_MASK		0x0000FFFF
+
+
+
 //---------------------------------------------------------
 //------ Instructions -------------------------------
 					
@@ -54,7 +61,7 @@
 #define		APPT	0x404C02A0			
 #define		APP		0x405D02A0		
 #define		PUSH	0x44040000	
-#define		MARK	0x7C04F800	
+#define		MARK	0x4404F800	
 #define		CLOS	0x20000000
 #define		IF		0x01000000		
 #define		GRAB	0x588E04C0		
@@ -68,25 +75,25 @@
 #define		JUMP	0x01800000		
 #define	    RET		0x01430000	
 
-#define 	ADD		0x780C1100	
-#define		SUB		0x780C1900
-#define	    MUL		0x780C2100
-#define		AND		0x780C2900
-#define		OR		0x780C3100
-#define		NOT		0x780C3900
-#define		XOR		0x780C4100
-#define		XNOR	0x780C4900
-#define		ASHR	0x780C5100
-#define		LSHR	0x780C5900
-#define		LSHL	0x780C6100
-#define		EQ		0x780C6900
-#define		NE		0x780C7100
-#define		GT		0x780C7900
-#define		LT		0x780C8100
-#define		GTE		0x780C8900
-#define		LTE		0x780C9100
-#define		ABV		0x780C9900
-#define		BEL		0x780CA100
+#define 	ADD		0x400C1000	
+#define		SUB		0x400C1800
+#define	    MUL		0x400C2000
+#define		AND		0x400C2800
+#define		OR		0x400C3000
+#define		NOT		0x40003800
+#define		XOR		0x400C4000
+#define		XNOR	0x400C4800
+#define		ASHR	0x400C5000
+#define		LSHR	0x400C5800
+#define		LSHL	0x400C6000
+#define		EQ		0x400C6800
+#define		NE		0x400C7000
+#define		GT		0x400C7800
+#define		LT		0x400C8000
+#define		GTE		0x400C8800
+#define		LTE		0x400C9000
+#define		ABV		0x400C9800
+#define		BEL		0x400CA000
 
 
 
