@@ -12,7 +12,7 @@ main::IO()
 main = do 
    src <- readFile "lam.src"
    let ins = compileSrc src
-       bin = encode $ map byteSwap32 ins   
+       bin = encode ins   
    B.writeFile "lam.bin" bin
 
 

@@ -18,22 +18,22 @@ import Data.Bits
 import qualified Data.Map as M
 
 type Symb = String
-type SymbTable = M.Map Symb Word32
+type SymbTable = M.Map Symb [Word8]
 
-data Expr = CONST Word32 
-          | DEF Symb Expr                      
-          | APP [Expr]
-          | LAM Symb Expr
-          | LET Symb Expr Expr
-          | LETREC Symb Expr Expr
-          | IF Expr Expr Expr          
-          | VAR Symb
-          | GET Symb
-          | SET Symb Word32
+data Expr = Const Word32 
+          | Def Symb Expr                      
+          | App [Expr]
+          | Lam Symb Expr
+          | Let Symb Expr Expr
+          | LetRec Symb Expr Expr
+          | If Expr Expr Expr          
+          | Var Symb
+          | Get Symb
+          | Set Symb Word32
           ------------------------------
-          | PRIM_1 POp Expr
-          | PRIM_2 POp Expr Expr 
-          | INST Word32        
+          | Prim_1 POp Expr
+          | Prim_2 POp Expr Expr 
+          -- | Inst Word32        
           deriving (Eq, Show)
 
 
@@ -48,10 +48,10 @@ data DBExpr = DB_CONST Word32
             | DB_SET Symb Word32
             | DB_CALL Word32
             | DB_JUMP Word32
-            | DB_I Word32
+            | DB_I Word8
             | DB_PRIM_1 POp DBExpr
             | DB_PRIM_2 POp DBExpr DBExpr
-            | DB_INST Word32          
+            | DB_INST [Word8]          
             deriving (Eq, Show)
 
 data SF a = FF | SS a
@@ -60,33 +60,33 @@ data SF a = FF | SS a
 
 exprToDB :: SymbTable -> Expr -> DBExpr
 exprToDB symt l = db_translate [] l where
-       db_translate _ (CONST n) = DB_CONST n  
-       db_translate _ (INST x) = DB_INST x      
-       db_translate env (LAM v e) = DB_LAM e' where
+       db_translate _ (Const n) = DB_CONST n  
+       --db_translate _ (Inst x) = DB_INST x      
+       db_translate env (Lam v e) = DB_LAM e' where
            e' = db_translate (v:env) e
-       db_translate env (LET v e0 e1) = DB_LET e0' e1' where
+       db_translate env (Let v e0 e1) = DB_LET e0' e1' where
            e0' = db_translate (v:env) e0
            e1' = db_translate (v:env) e1
-       db_translate env (LETREC v e0 e1) = DB_LETREC e0' e1' where
+       db_translate env (LetRec v e0 e1) = DB_LETREC e0' e1' where
            e0' = db_translate (v:env) e0     
            e1' = db_translate (v:env) e1   
-       db_translate env (IF b t e) = DB_IF b' t' e' where
+       db_translate env (If b t e) = DB_IF b' t' e' where
            b' = db_translate env b
            t' = db_translate env t
            e' = db_translate env e     
-       db_translate env (APP ls) = DB_APP False ls' where
+       db_translate env (App ls) = DB_APP False ls' where
            ls' = map (db_translate env) ls    
-       db_translate env (PRIM_1 i e) = DB_PRIM_1 i e' where
+       db_translate env (Prim_1 i e) = DB_PRIM_1 i e' where
            e' = db_translate env e
-       db_translate env (PRIM_2 i e0 e1) = DB_PRIM_2 i e0' e1' where
+       db_translate env (Prim_2 i e0 e1) = DB_PRIM_2 i e0' e1' where
            e0' = db_translate env e0
            e1' = db_translate env e1         
-       db_translate env (VAR v)
+       db_translate env (Var v)
         = case (find v env) of
             SS n -> DB_I n
             FF -> case (M.lookup v symt) of
-                Nothing   -> DB_INST 0
-                Just inst -> DB_INST inst
+                Nothing   -> DB_INST [0,0,0]
+                Just ins -> DB_INST ins
         where 
             find v [] = FF
             find v (v':rest) | v == v' = SS 0
@@ -105,40 +105,43 @@ tailCallOpt False (DB_APP _ es)  = (DB_APP True es)
 tailCallOpt _ e                   = e
 
 
-packOpt :: [INST] -> [INST]
-packOpt ((Inst a):Appterm:is) = (Jump a):(packOpt is)
-packOpt ((Cur a):is) = (Cur (packOpt a)):(packOpt is) 
-packOpt ((If a):is) = (If (packOpt a)):(packOpt is)  
+packOpt :: [Inst] -> [Inst]
+-- PackOpt ((INST a):APPT:is) = (JUMP a):(packOpt is)
+packOpt ((CLOS a):is) = (CLOS (packOpt a)):(packOpt is) 
+packOpt ((IF a):is) = (IF (packOpt a)):(packOpt is)  
+packOpt ((LDI x):PUSH:is) = (LDIP x):(packOpt is) 
+packOpt ((ACC x):PUSH:is) = (ACCP x):(packOpt is) 
 packOpt (i:is) = i:(packOpt is)
 packOpt [] = []
 
 
 -- ZAM --
 
-data INST = Access Word32
-          ------------
-          | Appterm
-          | Apply 
-          | Push
-          | Pushmark
-          ------------ Application
-          | Cur [INST]
-          | Grab
-          | RetC
-          | Let
-          | EndLet
-          | Dummy
-          | Update
-          ------------ Absraction
-          | If [INST]
-          | Call Word32
-          | Jump Word32
-          | Ret 
-          -- | Get
-          -- | Set
-          | Prim POp
-          | Const Word32
-          | Inst Word32
+data Inst = NOP
+          | LDI Word32
+          | LDIP Word32
+          | CLOS [Inst]
+          | IF [Inst]
+          | CALL Word32
+          | JUMP Word32
+          | RET
+          | ACC Word8
+          | ACCP Word8
+          | APPT
+          | APP
+          | PUSH
+          | MARK
+          | GRAB
+          | RETC
+          | LET
+          | ELET
+          | TEMP
+          | UPDT
+          | END
+          | GET Word32
+          | SET Word32 Word32
+          | PRIM POp          
+          | INST [Word8]         
           deriving (Eq, Show)
 
 data POp = Add      
@@ -165,29 +168,29 @@ data POp = Add
 
 
 
-compile :: DBExpr -> [INST]
-compile (DB_INST i) = [Inst i] 
-compile (DB_CONST k) = [Const k]
-compile (DB_I n) = [Access n]
-compile (DB_APP False es) = [Pushmark] ++ es' ++ [Apply] 
-                                where es' = intercalate [Push] $ map compile $ reverse es 
+compile :: DBExpr -> [Inst]
+compile (DB_INST ins) = [INST ins] 
+compile (DB_CONST k) = [LDI k]
+compile (DB_I n) = [ACC n]
+compile (DB_APP False es) = MARK:es' ++ [APP] 
+                                where es' = intercalate [PUSH] $ map compile $ reverse es 
 compile e@(DB_APP True es) = compileT e                                                                      
-compile (DB_LAM dbl) = [Cur $ compileT dbl ++ [RetC]] 
-compile (DB_LET v e) = (compile v) ++ Let:(compile e) ++ [EndLet]  
-compile (DB_LETREC v e) = Dummy:(compile v) ++ Update:(compile e) ++ [EndLet] 
-compile (DB_IF b t e) = (compile b) ++ [If $ compile t] ++ (compile e) 
-compile (DB_CALL a) = [Call a]
-compile (DB_JUMP a) = [Jump a]
-compile (DB_PRIM_1 i e) = (compile e) ++ [Prim i]
-compile (DB_PRIM_2 i e0 e1) = (compile e1) ++ Push:(compile e0) ++ [Prim i]                                
+compile (DB_LAM dbl) = [CLOS $ compileT dbl ++ [RETC]] 
+compile (DB_LET v e) = (compile v) ++ LET:(compile e) ++ [ELET]  
+compile (DB_LETREC v e) = TEMP:(compile v) ++ UPDT:(compile e) ++ [ELET] 
+compile (DB_IF b t e) = (compile b) ++ [IF $ compile t] ++ (compile e) 
+compile (DB_CALL a) = [CALL a]
+compile (DB_JUMP a) = [JUMP a]
+compile (DB_PRIM_1 i e) = (compile e) ++ [PRIM i]
+compile (DB_PRIM_2 i e0 e1) = (compile e1) ++ PUSH:(compile e0) ++ [PRIM i]                                
 
 
-compileT :: DBExpr -> [INST]
-compileT (DB_LAM dbl) = Grab:(compileT dbl)
-compileT (DB_LET v e) = (compile v) ++ Let:(compileT e)  
-compileT (DB_LETREC v e) = Dummy:(compile v) ++ Update:(compileT e)  
-compileT (DB_APP _ dbls) = dbls' ++ [Appterm] 
-                                where dbls' = intercalate [Push] $ map compile $ reverse dbls
+compileT :: DBExpr -> [Inst]
+compileT (DB_LAM dbl) = GRAB:(compileT dbl)
+compileT (DB_LET v e) = (compile v) ++ LET:(compileT e)  
+compileT (DB_LETREC v e) = TEMP:(compile v) ++ UPDT:(compileT e)  
+compileT (DB_APP _ dbls) = dbls' ++ [APPT] 
+                                where dbls' = intercalate [PUSH] $ map compile $ reverse dbls
 compileT l = compile l
 
 
@@ -195,66 +198,116 @@ compileT l = compile l
 ----------------------------------------------------------------------------------------------
 -- CodeGen ---------------------------------------------------------------------------------
 
+splitInt :: Word32 -> [Word8]
+splitInt a  
+  | a' >= 0 && a' <= 0x000000FF                 = [b0] 
+  | a' >= 0 && a' <= 0x0000FFFF                 = b1:[b0]
+  | a' >= 0 && a' <= 0x00FFFFFF                 = b2:b1:[b0]
+  | a' >= 0 && a' <= 0x7FFFFFFF                 = b3:b2:b1:[b0]
+  -- | a' < 0 && (a .&. 0xFFFFFF00) == 0xFFFFFF00 = [b0]
+  -- | a' < 0 && (a .&. 0xFFFF0000) == 0xFFFF0000 = b1:[b0]
+  -- | a' < 0 && (a .&. 0xFF000000) == 0xFF000000 = b2:b1:[b0]
+  | otherwise                                  = b3:b2:b1:[b0]
+    where b0 = fromIntegral (a .&. 0x000000FF)  :: Word8
+          b1 = fromIntegral $ shiftR (a .&. 0x0000FF00) 8 :: Word8
+          b2 = fromIntegral $ shiftR (a .&. 0x00FF0000) 16 :: Word8  
+          b3 = fromIntegral $ shiftR (a .&. 0xFF000000) 24 :: Word8  
+          a' = fromIntegral a :: Int
+
+splitAddr16 :: Word32 -> [Word8]
+splitAddr16 a 
+  | l == 0    = 0x00:[0x00]
+  | l == 1    = 0x00:bs
+  | otherwise = bs
+    where bs = splitInt a
+          l  = length bs            
+
+-- align :: ([Word8], Word32) -> ([Word8], Word32)
+-- align (ins,i)
+--   | i .&. 0x00000003 /= 0 = align (0x00:ins,i+1)
+--   | otherwise             = (ins,i)     
 
 
+genOPs :: [Inst] -> ([Word8], Word32) -> ([Word8], Word32)
+genOPs (NOP:ins)         (ops,i)  = genOPs ins (0x00:ops, i+1)
+genOPs ((ACC db):ins)    (ops,i)  = genOPs ins (db:op:ops, i+2) where
+  op = 0x20 .|. 1
+genOPs ((ACCP db):ins)   (ops,i)  = genOPs ins (db:op:ops, i+2) where
+  op = 0x24 .|. 1
+genOPs (APPT:ins)        (ops,i)  = genOPs ins (0x28:ops, i+1)
+genOPs (APP:ins)         (ops,i)  = genOPs ins (0x2C:ops, i+1)    
+genOPs (PUSH:ins)        (ops,i)  = genOPs ins (0x30:ops, i+1)    
+genOPs (MARK:ins)        (ops,i)  = genOPs ins (0x34:ops, i+1)                               
+genOPs (GRAB:ins)        (ops,i)  = genOPs ins (0x38:ops, i+1)
+genOPs ((CALL a):ins)    (ops,i)  = genOPs ins (bs++(op:ops), i+1+l32) where
+  bs   = splitInt a
+  l    = fromIntegral (length bs) :: Word8
+  l32  = fromIntegral (length bs) :: Word32
+  op = 0x14 .|. l
+genOPs ((JUMP a):ins)    (ops,i)  = genOPs ins (bs++(op:ops), i+1+l32) where
+  bs = splitInt a
+  l    = fromIntegral (length bs) :: Word8
+  l32  = fromIntegral (length bs) :: Word32
+  op = 0x18 .|. l 
+genOPs (RET:ins)         (ops,i)  = genOPs ins (0x1C:ops, i+1)   
+genOPs (RETC:ins)        (ops,i)  = genOPs ins (0x3C:ops, i+1) 
+genOPs (LET:ins)         (ops,i)  = genOPs ins (0x40:ops, i+1)
+genOPs (ELET:ins)        (ops,i)  = genOPs ins (0x44:ops, i+1)
+genOPs (TEMP:ins)        (ops,i)  = genOPs ins (0x48:ops, i+1)
+genOPs (UPDT:ins)        (ops,i)  = genOPs ins (0x4C:ops, i+1)
+genOPs ((LDI x):ins)     (ops,i)  = genOPs ins (bs++(op:ops), i+1+l32) where
+  bs = splitInt x
+  l    = fromIntegral (length bs) :: Word8
+  l32  = fromIntegral (length bs) :: Word32
+  op = 0x04 .|. l 
+genOPs ((LDIP x):ins)     (ops,i)  = genOPs ins (bs++(op:ops), i+1+l32) where 
+  bs = splitInt x
+  l    = fromIntegral (length bs) :: Word8
+  l32  = fromIntegral (length bs) :: Word32
+  op = 0x08 .|. l  
+genOPs ((PRIM Add):ins)  (ops,i)  = genOPs ins (0xA0:ops, i+1) 
+genOPs ((PRIM Sub):ins)  (ops,i)  = genOPs ins (0xA4:ops, i+1)
+genOPs ((PRIM Mul):ins)  (ops,i)  = genOPs ins (0xA8:ops, i+1)
+genOPs ((PRIM And):ins)  (ops,i)  = genOPs ins (0xAC:ops, i+1)
+genOPs ((PRIM Or):ins)   (ops,i)  = genOPs ins (0xB0:ops, i+1)
+genOPs ((PRIM Not):ins)  (ops,i)  = genOPs ins (0xB4:ops, i+1)
+genOPs ((PRIM Xor):ins)  (ops,i)  = genOPs ins (0xB8:ops, i+1)
+genOPs ((PRIM Xnor):ins) (ops,i)  = genOPs ins (0xBC:ops, i+1)
+genOPs ((PRIM Ashr):ins) (ops,i)  = genOPs ins (0xC0:ops, i+1)
+genOPs ((PRIM Lshr):ins) (ops,i)  = genOPs ins (0xC4:ops, i+1)
+genOPs ((PRIM Lshl):ins) (ops,i)  = genOPs ins (0xC8:ops, i+1)
+genOPs ((PRIM Eq):ins)   (ops,i)  = genOPs ins (0xCC:ops, i+1)
+genOPs ((PRIM Ne):ins)   (ops,i)  = genOPs ins (0xD0:ops, i+1)
+genOPs ((PRIM Gt):ins)   (ops,i)  = genOPs ins (0xD4:ops, i+1)
+genOPs ((PRIM Lt):ins)   (ops,i)  = genOPs ins (0xD8:ops, i+1)
+genOPs ((PRIM Gte):ins)  (ops,i)  = genOPs ins (0xDC:ops, i+1)
+genOPs ((PRIM Lte):ins)  (ops,i)  = genOPs ins (0xE0:ops, i+1)
+genOPs ((PRIM Abv):ins)  (ops,i)  = genOPs ins (0xE4:ops, i+1)
+genOPs ((PRIM Bel):ins)  (ops,i)  = genOPs ins (0xE8:ops, i+1)
 
+genOPs ((INST xs):ins)    (ops,i) = genOPs ins (xs++ops, i+l) where
+  l  = fromIntegral (length xs)
 
+genOPs ((CLOS c):[])      (ops,i) = (ops'++addr++(op:ops), i') 
+  where (ops', i')  = genOPs c (ops,  i+3)        
+        addr         = splitAddr16 (i+3)
+        op = 0x0C .|. 2        
 
-genOPs :: [INST] -> ([Word32], Word32) -> ([Word32], Word32)
-genOPs ((Access db):ins) (ops,i)  = genOPs ins ((0x48000000 .|. (db .&. 0x0000001F)):ops, i+1)
-genOPs (Appterm:ins)     (ops,i)  = genOPs ins (0x404C02A0:ops, i+1)
-genOPs (Apply:ins)       (ops,i)  = genOPs ins (0x405D02A0:ops, i+1)    
-genOPs (Push:ins)        (ops,i)  = genOPs ins (0x44040000:ops, i+1)    
-genOPs (Pushmark:ins)    (ops,i)  = genOPs ins (0x4404F800:ops, i+1)                               
-genOPs (Grab:ins)        (ops,i)  = genOPs ins (0x588E04C0:ops, i+1)
-genOPs ((Call a):ins)    (ops,i)  = genOPs ins ((0x01A10000 .|. a):ops, i+1) 
-genOPs ((Jump a):ins)    (ops,i)  = genOPs ins ((0x01800000 .|. (0xFFFF .&. a)):ops, i+1)  
-genOPs (Ret:ins)         (ops,i)  = genOPs ins (0x01430000:ops, i+1)   
-genOPs (RetC:ins)        (ops,i)  = genOPs ins (0x40CE06C0:ops, i+1) 
-genOPs (Let:ins)         (ops,i)  = genOPs ins (0x40000120:ops, i+1)
-genOPs (EndLet:ins)      (ops,i)  = genOPs ins (0x40000060:ops, i+1)
-genOPs (Dummy:ins)       (ops,i)  = genOPs ins (0x7800F920:ops, i+1)
-genOPs (Update:ins)      (ops,i)  = genOPs ins (0x40000100:ops, i+1)
-genOPs ((Const x):ins)   (ops,i)  = genOPs ins ((0x80000000 .|. x):ops, i+1)  
-genOPs ((Prim Add):ins)  (ops,i)  = genOPs ins (0x400C1000:ops, i+1) 
-genOPs ((Prim Sub):ins)  (ops,i)  = genOPs ins (0x400C1800:ops, i+1)
-genOPs ((Prim Mul):ins)  (ops,i)  = genOPs ins (0x400C2000:ops, i+1)
-genOPs ((Prim And):ins)  (ops,i)  = genOPs ins (0x400C2800:ops, i+1)
-genOPs ((Prim Or):ins)   (ops,i)  = genOPs ins (0x400C3000:ops, i+1)
-genOPs ((Prim Not):ins)  (ops,i)  = genOPs ins (0x40003800:ops, i+1)
-genOPs ((Prim Xor):ins)  (ops,i)  = genOPs ins (0x400C4000:ops, i+1)
-genOPs ((Prim Xnor):ins) (ops,i)  = genOPs ins (0x400C4800:ops, i+1)
-genOPs ((Prim Ashr):ins) (ops,i)  = genOPs ins (0x400C5000:ops, i+1)
-genOPs ((Prim Lshr):ins) (ops,i)  = genOPs ins (0x400C5800:ops, i+1)
-genOPs ((Prim Lshl):ins) (ops,i)  = genOPs ins (0x400C6000:ops, i+1)
-genOPs ((Prim Eq):ins)   (ops,i)  = genOPs ins (0x400C6800:ops, i+1)
-genOPs ((Prim Ne):ins)   (ops,i)  = genOPs ins (0x400C7000:ops, i+1)
-genOPs ((Prim Gt):ins)   (ops,i)  = genOPs ins (0x400C7800:ops, i+1)
-genOPs ((Prim Lt):ins)   (ops,i)  = genOPs ins (0x400C8000:ops, i+1)
-genOPs ((Prim Gte):ins)  (ops,i)  = genOPs ins (0x400C8800:ops, i+1)
-genOPs ((Prim Lte):ins)  (ops,i)  = genOPs ins (0x400C9000:ops, i+1)
-genOPs ((Prim Abv):ins)  (ops,i)  = genOPs ins (0x400C9800:ops, i+1)
-genOPs ((Prim Bel):ins)  (ops,i)  = genOPs ins (0x400CA000:ops, i+1)
-
-genOPs ((Inst x):ins)    (ops,i) = genOPs ins (x:ops, i+1) 
-genOPs ((Cur c):[])      (ops,i) = (ops' ++ ((0x20000000 .|. i):ops), i') 
-  where (ops', i') = genOPs c (ops, i) 
-
-genOPs ((Cur c):ins)     (ops,i) = (ops'' ++ ((0x20000000 .|. i'):ops), i'') 
-  where (ops', i') = genOPs ins ([], i+1)
-        (ops'', i'') = genOPs c (ops', i') 
-
--- genOPs ((Jump c):ins)     (ops,i) = (ops'' ++ ((0x01800000 .|. i'):ops), i'') 
---   where (ops', i') = genOPs ins ([], i+1)
---         (ops'', i'') = genOPs c (ops', i')        
-
-genOPs ((If c):ins)     (ops,i) = (ops'' ++ ((0x01000000 .|. i'):ops), i'') 
-  where (ops', i') = genOPs ins ([], i+1)
+genOPs ((CLOS c):ins)     (ops,i) = (ops''++addr++(op:ops), i'') 
+  where (ops', i') = genOPs ins ([], i+3)
         (ops'', i'') = genOPs c (ops', i')        
-genOPs []                (ops@(0x40CE06C0:_),i) = (ops, i) -- no need for End after RetC 
-genOPs []                (ops@(0x01430000:_),i) = (ops, i) -- no need for End after Ret
-genOPs []                (ops@(0x404C02A0:_),i) = (ops, i) -- no need for End after AppT
-genOPs []                (ops,i) = (0x7FFFFFFF:ops, i+1) 
+        addr         = splitAddr16 i'
+        op = 0x0C .|. 2
+
+genOPs ((IF c):ins)     (ops,i) = (ops''++addr++(op:ops), i'') 
+  where (ops', i')   = genOPs ins ([], i+3)
+        (ops'', i'') = genOPs c (ops', i') 
+        addr         = splitAddr16 i'        
+        op = 0x10 .|. 2        
+genOPs []                (ops@(0x3C:_),i) = (ops, i) -- no need for End after RETC 
+genOPs []                (ops@(0x1C:_),i) = (ops, i) -- no need for End after Ret
+genOPs []                (ops@(0x28:_),i) = (ops, i) -- no need for End after AppT
+genOPs []                (ops,i) = (0x50:ops, i+1) 
 
 
 
@@ -262,31 +315,50 @@ genOPs []                (ops,i) = (0x7FFFFFFF:ops, i+1)
 
 
 
-test = (APP [(LAM "f" (APP [(VAR "f"), (CONST 10)])), (APP [(LAM "y" (LAM "x" (PRIM_2 Add (VAR "x") (VAR "y")))), (CONST 5)])])   
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+test = (App [(Lam "f" (App [(Var "f"), (Const 10)])), (App [(Lam "y" (Lam "x" (Prim_2 Add (Var "x") (Var "y")))), (Const 5)])])   
      
 
-test2 = (APP [(LAM "f" (LAM "x" (APP[(VAR "f"), (APP [(VAR "f"), (VAR "x")])]))), (LAM "y" (PRIM_2 Add (VAR "y") (VAR "y"))), (CONST 5)])
+test2 = (App [(Lam "f" (Lam "x" (App[(Var "f"), (App [(Var "f"), (Var "x")])]))), (Lam "y" (Prim_2 Add (Var "y") (Var "y"))), (Const 5)])
 
 
 
-test3 = (LET "x" (CONST 25) 
-        (LET "y" (CONST 5)
-            (PRIM_2 Add (VAR "x") (VAR "y"))))
+test3 = (Let "x" (Const 25) 
+        (Let "y" (Const 5)
+            (Prim_2 Add (Var "x") (Var "y"))))
 
-test4 = (LET "x" (CONST 0) 
-        (LET "y" (CONST 5)
-            (IF (VAR "x") (CONST 1) (CONST 2))))
+test4 = (Let "x" (Const 0) 
+        (Let "y" (Const 5)
+            (If (Var "x") (Const 1) (Const 2))))
 
--- test5 = (LETREC "fact" 
---             (LAM "x" 
+-- test5 = (LetRec "fact" 
+--             (Lam "x" 
 --                ()))
 
-test6 = (LETREC "cntdn" 
-            (LAM "x" 
-               (IF (VAR "x")
-                  (APP [(VAR "cntdn"), (PRIM_2 Sub (VAR "x") (CONST 1))])
-                  (CONST 0)))
-            (APP [(VAR "cntdn"), (CONST 5)]))
+test6 = (LetRec "cntdn" 
+            (Lam "x" 
+               (If (Var "x")
+                  (App [(Var "cntdn"), (Prim_2 Sub (Var "x") (Const 1))])
+                  (Const 0)))
+            (App [(Var "cntdn"), (Const 5)]))
 
 
 
@@ -299,79 +371,3 @@ test6 = (LETREC "cntdn"
 
 
 
-
-
-
-
-----------------------------------------------------------------------------------------------
--- Evaluator ---------------------------------------------------------------------------------
-
-data VAL = VNum Word32
-         | VClos CLO
-         | VMark 
-         deriving (Eq, Show)
-
-type ENV = [VAL]
-
-type CLO = ([INST], ENV)
-
---          -code- -acc--env- -arg-  -ret-
-type ZAM = ([INST], VAL, ENV, [VAL], [CLO])     
-
--- mkZam :: Expr -> ZAM
--- mkZam l = (c, VMark, [], [], []) where c = compile $ exprToDB l
-
-
--- eval :: ZAM -> ZAM                                        
--- eval ([], a, e, s, r) = ([], a, e, s, r) -- End
--- eval st = eval (step st)
-
--- step :: ZAM -> ZAM
--- step ((Access i):c0, a, e, s, r) = (c0, e!!((fromIntegral i)), e, s, r)
--- step (Apply:c0, a@(VClos (c1, e1)), e0, v:s, r) = (c1, a, v:e1, s, (c0, e0):r) 
--- step (Appterm:c0, a@(VClos (c1, e1)), e0, v:s, r) = (c1, a, v:e1, s, r)     
--- step (Push:c0, a, e, s, r) = (c0, a, e, a:s, r)
--- step (Pushmark:c0, a, e, s, r) = (c0, a, e, VMark:s, r)
--- step ((Cur c1):c0, a, e, s, r) = (c0, VClos (c1, e), e, s, r)
--- step ((If c1):c0, a@(VNum 0), e, s, r) = (c0, a, e, s, r)
--- step ((If c1):c0, a, e, s, r) = (c1, a, e, s, r)
--- step (Grab:c0, a, e0, VMark:s, (c1,e1):r) = (c1, VClos (c0, e0), e1, s, r)
--- step (Grab:c, a, e, v:s, r) = (c, a, v:e, s, r)
--- step (RetC:c0, a, e0, VMark:s, (c1,e1):r) = (c1, a, e1, s, r)
--- step (RetC:c0, a@(VClos (c1,e1)), e0, v:s, r) = (c1, a, v:e1, s, r)
--- step (Let:c0, a, e, s, r) = (c0, a, a:e, s, r)  
--- step (EndLet:c0, a, v:e, s, r) = (c0, a, e, s, r) 
--- step (Dummy:c0, a, e, s, r) = (c0, a, VMark:e, s, r) 
--- step (Update:c0, a, v:e, s, r) = (c0, a, a:e, s, r) 
--- step ((Prim_2 i):c0, (VNum a), e, (VNum x):s, r) = (c0, VNum (a+x), e, s, r)
--- step ((Prim Sub):c0, (VNum a), e, (VNum x):s, r) = (c0, VNum (a-x), e, s, r)
--- step ((Prim And):c0, (VNum a), e, (VNum x):s, r) = (c0, VNum (a.&.x), e, s, r)
--- step ((Prim Or):c0, (VNum a), e, (VNum x):s, r) = (c0, VNum (a.|.x), e, s, r) 
--- step ((Const x):c0, a, e, s, r) = (c0, VNum x, e, s, r)                           
-
--- sim' :: ZAM -> IO()
--- sim' x@([], _,_,_,_) = do RetC()
--- sim' x = do
---    let y = step x
---    pretty y
---    sim' y        
-
--- sim :: Expr -> IO()
--- sim l = do
---    let z = mkZam l
---    pretty z
---    sim' z
-
--- pretty :: ZAM -> IO()
--- pretty (c, a, e, s, r) = do
---   putStr "Code: "
---   print c
---   putStr "A: "
---   print a
---   putStr "Env: "
---   print e
---   putStr "argS: "
---   print s
---   putStr "retS: "
---   print r
---   print "--------------------------"

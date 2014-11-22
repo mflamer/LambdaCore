@@ -5,6 +5,8 @@ module LamCor.Parser
 ,expr
 ,split
 ,compileSrc
+,compileTop
+,findMain
 )where
 
 import LamCor.Language
@@ -91,30 +93,30 @@ expr t@("(":ts) = (el, r)
    -- rr = expr r
    -- (er,_) = chain rr
 expr (")":ts)      = expr ts     
-expr ("def":s:ts)  = ([DEF s e],ts') where
+expr ("def":s:ts)  = ([Def s e],ts') where
    (e:_,ts') = expr ts   
-expr ("lam":s:ts)  = ([LAM s e],ts') where
+expr ("lam":s:ts)  = ([Lam s e],ts') where
    (e:_,ts') = expr ts
-expr ("let":s:ts)  = ([LET s e e'],ts'') where
+expr ("let":s:ts)  = ([Let s e e'],ts'') where
    (e:_,ts')   = expr ts
    (e':es',ts'') = expr ts'
-expr ("letrec":s:ts)  = ([LETREC s e e'],ts'') where
+expr ("letrec":s:ts)  = ([LetRec s e e'],ts'') where
    (e:_,ts')   = expr ts
    (e':es',ts'') = expr ts'
-expr ("if":ts)     = ([IF eb et ef],ts''') where
+expr ("if":ts)     = ([If eb et ef],ts''') where
    (eb:_,ts')   = expr ts
    (et:_,ts'')  = expr ts'
    (ef:_,ts''') = expr ts''                       
 expr (t@(c:cs):ts) 
    | M.member t binaryOps = prim2 (t:ts)
-   | isNumber c = ([CONST (read t :: Word32)],ts)
-   | otherwise  = ([VAR t],ts)
+   | isNumber c = ([Const (read t :: Word32)],ts)
+   | otherwise  = ([Var t],ts)
 
 
 prim2 :: [Token] -> ([Expr],[Token])
 prim2 (t:ts) = case ts' of
-   [] -> ([LAM "y" (PRIM_2 op e1 (VAR "y"))],ts')
-   x       -> ([PRIM_2 op e1 e2],ts'')   
+   [] -> ([Lam "y" (Prim_2 op e1 (Var "y"))],ts')
+   x       -> ([Prim_2 op e1 e2],ts'')   
    where op          = binaryOps M.! t
          (e1:_,ts')  = expr ts
          (e2:_,ts'') = expr ts'
@@ -142,7 +144,7 @@ chain (es,ts) = chain (es++es',ts') where
 appl :: [Expr] -> [Expr]
 appl []  = []
 appl [e] = [e]
-appl a@(e:es) = [APP a]     
+appl a@(e:es) = [App a]     
 
 
 parse :: String -> [Expr]
@@ -154,25 +156,25 @@ findMain es = main++defs where
    (main,defs) = takeDefs (es,[])
 
 takeDefs :: ([Expr],[Expr]) -> ([Expr],[Expr])
-takeDefs (e@(DEF s _):es,es') = takeDefs (es,e:es')
+takeDefs (e@(Def s _):es,es') = takeDefs (es,e:es')
 takeDefs (es,es') = (es,es')  
 
 
-compileTop :: (SymbTable,[Word32],Word32) -> [Expr] -> (SymbTable,[Word32],Word32)
+compileTop :: (SymbTable,[Word8],Word32) -> [Expr] -> (SymbTable,[Word8],Word32)
 compileTop env [] = env
-compileTop (symt,ins,pc) ((DEF s e):es) = compileTop (symt'',(init ins')++ins,pc') es where
-   (symt',ins',pc') = compileExpr (symt,[],pc) e
-   symt''           = M.insertWith (\n o -> o) s (last ins') symt'  
-
+compileTop (symt,ins,pc) ((Def s e):es) = compileTop (symt'',def++ins,pc') es where
+   (symt',ins',pc') = compileExpr (symt,[],pc-3) e
+   symt''           = M.insertWith (\n o -> o) s clo symt' 
+   (def,clo)        = splitAt ((length ins')-3) ins' 
 compileTop (symt,ins,pc) (e:es) = compileTop (compileExpr (symt,ins,pc) e) es 
     
 
-compileExpr :: (SymbTable,[Word32],Word32)-> Expr -> (SymbTable,[Word32],Word32)
+compileExpr :: (SymbTable,[Word8],Word32)-> Expr -> (SymbTable,[Word8],Word32)
 compileExpr (symt,ins,pc) e = (symt,ins',pc') where
    (ins',pc') = genOPs (packOpt (compile $ tailCallOpt True $ exprToDB symt e)) (ins,pc)
 
 
-compileSrc :: String -> [Word32]
+compileSrc :: String -> [Word8]
 compileSrc src = reverse ins' where
    (symt,ins,cnt) = compileTop (M.empty,[],0) exprs
    (symt',ins',cnt') = compileTop (symt,[],0) exprs
