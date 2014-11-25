@@ -131,7 +131,7 @@ public:
 	
 
 
-	char RAM[RAMSIZE];		
+	unsigned char RAM[RAMSIZE];		
 	int argS[ARGSTACKSIZE];
 	int retS[RETSTACKSIZE];
 	int F[FRAMESIZE];
@@ -148,7 +148,7 @@ public:
 	//unsigned char _ret_TOS;
 
 
-
+	
 	char DB;		// debrujin index
 	unsigned int FA;		// frame address
 	//short _FA;
@@ -159,9 +159,18 @@ public:
 	bool A_stall;		//The processor must stall when searching through envs
 	bool F_stall;		//The processor must stall when setting a new env
 
-	bool late_write_F;
+	bool late_write_F;  //We are loading a frame and need to add a value to it on the next cycle
+	bool newFrame;      //We are linking to the next available frame
 	bool loadWord;
 	unsigned int late_write_val; 
+
+	void	NewFrame(int firstParam, bool incRef = true);
+
+
+
+	//Stats
+	int newFrames;
+	int disposedFrames;
 	
 
 };

@@ -12,17 +12,28 @@
 
 (def half
     (lam x (/> x 1)))
-                  
 
--- (cntdn (double (half (plus5 1))))
+(def twice
+    (lam f (lam x (f (f x)))))
+
+(def timesFour
+    (lam x (twice double x)))
+               
 
 (def tests (lam x 
+    (let x0 0
+    (let x1 1
+    (let x2 2    
     (let t_add (==(+ 10 20)30) 
     (let t_sub (==(- 20 10)10)
     (let t_mul (==(* 10 10)100)
     (let t_and (==(& 65535 43690)43690)
     (let t_or  (==(| 21845 43690)65535)
-    --(let t_not (==(~ 65535)-65536)     
-        (+ t_add(+ t_sub(+ t_mul(+ t_and t_or))))))))))))  
+    (let t_not (==(~ 65535)-65536) 
+    (let t_times4 (==(timesFour 5) 20)  
+    (let t_cntDn (==(cntdn (double (half (plus5 1)))) 0)  
+        (+ t_add(+ t_sub(+ t_mul(+ t_and(+ t_or(+ t_not(+ t_times4 t_cntDn)
+            ))))))))))))))))))) 
 
-(== (tests 0) 5)
+(== (tests 0) 8)
+

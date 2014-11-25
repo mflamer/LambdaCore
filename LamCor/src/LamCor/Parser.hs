@@ -13,14 +13,19 @@ import LamCor.Language
 
 import Data.Char
 import Data.Word
+import Data.Int
 import qualified Data.Map as M
 
 type Token = String
 
 clex :: String -> [Token]
+clex (c:d:cs)  
+   | elem cd twoCharOps = cd : clex cs
+   | cd == "--" = clex (restComment cs) 
+      where cd = c : [d] 
 clex (c:cs)    
    | isSpace c  = clex cs   
-   | isNumber c = num_token : clex rest_dig      
+   | isNumber c || c == '-' = num_token : clex rest_dig      
    | isAlpha c  = var_tok : clex rest_alp 
    | isParen c  = [c] : clex cs
       where 
@@ -28,11 +33,7 @@ clex (c:cs)
          rest_alp = dropWhile isIdChar cs         
          num_token = c : takeWhile isNumber cs
          rest_dig = dropWhile isNumber cs 
-         isParen c = (c == '(') || (c == ')')               
-clex (c:d:cs)  
-   | elem cd twoCharOps = cd : clex cs
-   | cd == "--" = clex (restComment cs) 
-      where cd = c : [d]                  
+         isParen c = (c == '(') || (c == ')')                 
 clex (c:cs) = [c] : clex cs  
 clex [] = []  
 
@@ -90,8 +91,6 @@ expr t@("(":ts) = (el, r)
    (l,r) = split ([],t) 0  
    ll = expr l
    (el,_) = chain ll
-   -- rr = expr r
-   -- (er,_) = chain rr
 expr (")":ts)      = expr ts     
 expr ("def":s:ts)  = ([Def s e],ts') where
    (e:_,ts') = expr ts   
@@ -109,9 +108,17 @@ expr ("if":ts)     = ([If eb et ef],ts''') where
    (ef:_,ts''') = expr ts''                       
 expr (t@(c:cs):ts) 
    | M.member t binaryOps = prim2 (t:ts)
-   | isNumber c = ([Const (read t :: Word32)],ts)
+   | M.member t unaryOps = prim1 (t:ts)
+   | isNumber c || c == '-' = ([Const x],ts) 
    | otherwise  = ([Var t],ts)
+   where x = (fromIntegral (read t :: Int32)) :: Word32
 
+prim1 :: [Token] -> ([Expr],[Token])
+prim1 (t:ts) = case ts of
+   [] -> ([Lam "y" (Prim_1 op (Var "y"))],ts)
+   x       -> ([Prim_1 op e1],ts')   
+   where op          = unaryOps M.! t
+         (e1:_,ts')  = expr ts         
 
 prim2 :: [Token] -> ([Expr],[Token])
 prim2 (t:ts) = case ts' of
@@ -120,8 +127,6 @@ prim2 (t:ts) = case ts' of
    where op          = binaryOps M.! t
          (e1:_,ts')  = expr ts
          (e2:_,ts'') = expr ts'
-
-
 
 split :: ([Token],[Token]) -> Int -> ([Token],[Token])
 split (l,[]) d       = (reverse l,[])
@@ -172,6 +177,10 @@ compileTop (symt,ins,pc) (e:es) = compileTop (compileExpr (symt,ins,pc) e) es
 compileExpr :: (SymbTable,[Word8],Word32)-> Expr -> (SymbTable,[Word8],Word32)
 compileExpr (symt,ins,pc) e = (symt,ins',pc') where
    (ins',pc') = genOPs (packOpt (compile $ tailCallOpt True $ exprToDB symt e)) (ins,pc)
+
+compileExprT :: (SymbTable,[Word8],Word32)-> Expr -> (SymbTable,[Word8],Word32)
+compileExprT (symt,ins,pc) e = (symt,ins',pc') where
+   (ins',pc') = genOPs (packOpt (compileT $ exprToDB symt e)) (ins,pc)   
 
 
 compileSrc :: String -> [Word8]

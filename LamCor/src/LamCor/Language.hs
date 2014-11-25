@@ -9,6 +9,7 @@ module LamCor.Language
 ,exprToDB
 ,tailCallOpt
 ,packOpt
+,splitInt
 )
   where
 
@@ -231,9 +232,9 @@ splitAddr16 a
 genOPs :: [Inst] -> ([Word8], Word32) -> ([Word8], Word32)
 genOPs (NOP:ins)         (ops,i)  = genOPs ins (0x00:ops, i+1)
 genOPs ((ACC db):ins)    (ops,i)  = genOPs ins (db:op:ops, i+2) where
-  op = 0x20 .|. 1
+  op = 0x20
 genOPs ((ACCP db):ins)   (ops,i)  = genOPs ins (db:op:ops, i+2) where
-  op = 0x24 .|. 1
+  op = 0x24 
 genOPs (APPT:ins)        (ops,i)  = genOPs ins (0x28:ops, i+1)
 genOPs (APP:ins)         (ops,i)  = genOPs ins (0x2C:ops, i+1)    
 genOPs (PUSH:ins)        (ops,i)  = genOPs ins (0x30:ops, i+1)    
@@ -243,12 +244,12 @@ genOPs ((CALL a):ins)    (ops,i)  = genOPs ins (bs++(op:ops), i+1+l32) where
   bs   = splitInt a
   l    = fromIntegral (length bs) :: Word8
   l32  = fromIntegral (length bs) :: Word32
-  op = 0x14 .|. l
+  op = 0x14 .|. (l - 1)
 genOPs ((JUMP a):ins)    (ops,i)  = genOPs ins (bs++(op:ops), i+1+l32) where
   bs = splitInt a
   l    = fromIntegral (length bs) :: Word8
   l32  = fromIntegral (length bs) :: Word32
-  op = 0x18 .|. l 
+  op = 0x18 .|. (l - 1) 
 genOPs (RET:ins)         (ops,i)  = genOPs ins (0x1C:ops, i+1)   
 genOPs (RETC:ins)        (ops,i)  = genOPs ins (0x3C:ops, i+1) 
 genOPs (LET:ins)         (ops,i)  = genOPs ins (0x40:ops, i+1)
@@ -259,12 +260,12 @@ genOPs ((LDI x):ins)     (ops,i)  = genOPs ins (bs++(op:ops), i+1+l32) where
   bs = splitInt x
   l    = fromIntegral (length bs) :: Word8
   l32  = fromIntegral (length bs) :: Word32
-  op = 0x04 .|. l 
+  op = 0x04 .|. (l - 1)
 genOPs ((LDIP x):ins)     (ops,i)  = genOPs ins (bs++(op:ops), i+1+l32) where 
   bs = splitInt x
   l    = fromIntegral (length bs) :: Word8
   l32  = fromIntegral (length bs) :: Word32
-  op = 0x08 .|. l  
+  op = 0x08 .|. (l - 1)  
 genOPs ((PRIM Add):ins)  (ops,i)  = genOPs ins (0xA0:ops, i+1) 
 genOPs ((PRIM Sub):ins)  (ops,i)  = genOPs ins (0xA4:ops, i+1)
 genOPs ((PRIM Mul):ins)  (ops,i)  = genOPs ins (0xA8:ops, i+1)
@@ -291,19 +292,19 @@ genOPs ((INST xs):ins)    (ops,i) = genOPs ins (xs++ops, i+l) where
 genOPs ((CLOS c):[])      (ops,i) = (ops'++addr++(op:ops), i') 
   where (ops', i')  = genOPs c (ops,  i+3)        
         addr         = splitAddr16 (i+3)
-        op = 0x0C .|. 2        
+        op = 0x0C .|. 1        
 
 genOPs ((CLOS c):ins)     (ops,i) = (ops''++addr++(op:ops), i'') 
   where (ops', i') = genOPs ins ([], i+3)
         (ops'', i'') = genOPs c (ops', i')        
         addr         = splitAddr16 i'
-        op = 0x0C .|. 2
+        op = 0x0C .|. 1
 
 genOPs ((IF c):ins)     (ops,i) = (ops''++addr++(op:ops), i'') 
   where (ops', i')   = genOPs ins ([], i+3)
         (ops'', i'') = genOPs c (ops', i') 
         addr         = splitAddr16 i'        
-        op = 0x10 .|. 2        
+        op = 0x10 .|. 1        
 genOPs []                (ops@(0x3C:_),i) = (ops, i) -- no need for End after RETC 
 genOPs []                (ops@(0x1C:_),i) = (ops, i) -- no need for End after Ret
 genOPs []                (ops@(0x28:_),i) = (ops, i) -- no need for End after AppT

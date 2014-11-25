@@ -1,6 +1,6 @@
 #include "core.h"
 
-int PrintInst(char inst[], unsigned int PC)
+int PrintInst(unsigned char inst[], unsigned int PC)
 {
 	int result = 1;
 	int skip = 1;
@@ -10,24 +10,21 @@ int PrintInst(char inst[], unsigned int PC)
 	switch(n)
 	{
 	case 0:
-		data = (int)(inst[1] | (inst[2]<<8) | (inst[3]<<16) | (inst[4]<<24));
-		skip = 5;
-		break;
-	case 1:
-		data = (unsigned char)inst[1];
-		//data = ((int)(inst[1] << 24) >> 24);
+		data = inst[1];		
 		skip = 2;
 		break;
-	case 2: 
-		data = ((unsigned char)inst[1] | ((unsigned char)inst[2]<<8));
-		//data = ((int)(inst[1] << 16)|((int)(inst[2] << 24)) >> 16);
+	case 1: 
+		data = (inst[1] | (inst[2]<<8));		
 		skip = 3;
 		break;		   
-	case 3:		
-		data = ((unsigned char)inst[1] | ((unsigned char)inst[2]<<8) | ((unsigned char)inst[3]<<16));
-		//data = ((int)(inst[1]<<8)|(int)(inst[2]<<16)|((int)(inst[3]<<24))>>8);
+	case 2:		
+		data = (inst[1] | (inst[2]<<8) | (inst[3]<<16));		
 		skip = 4;
-		break;		   
+		break;	
+	case 3:
+		data = (inst[1] | (inst[2]<<8) | (inst[3]<<16) | (inst[4]<<24));
+		skip = 5;
+		break;
 	}
 	switch((int)op)
 	{
@@ -181,6 +178,7 @@ void Core::Reset()
 	for (unsigned i = 0; i < RETSTACKSIZE; ++i) retS[i] = INITVAL;
 	for (unsigned i = 0; i < FRAMESIZE; ++i) F[i] = INITVAL;
 
+	
 	A = 0;
 	PC = 0;
 	E = 0;
@@ -196,8 +194,13 @@ void Core::Reset()
 
 	late_write_F = false;
 	late_write_val = 0;
-
+	newFrame = false;
 	loadWord = false; 
+
+
+	//Stats
+	newFrames = 0;
+	disposedFrames = 0;
 
 }
 
@@ -226,7 +229,9 @@ size_t Core::LoadRAM(std::string fileName)
 			memcpy((void*)F, (void*)(&RAM[E]), 32); 
 			E = E >> 2;
 			FA = E;
-			N = E + 8;
+			//init root frame
+			N = F[0] & F_LINK_MASK;
+			F[0] = 0;
 		}
 		fclose (pFile);	
 		return size;
@@ -248,6 +253,8 @@ void Core::Run(bool printState)
 	std::cout << "------------------------------------------------------------------ \n";
 	std::cout << "Result = " << A << "\n";
 	std::cout << "Ran for = " << cycles << "cycles \n";
+	std::cout << "SpawnedFrames = " << newFrames << "\n";
+	std::cout << "DisposedFrames = " << disposedFrames << "\n";
 }
 
  //bool Core::Step(bool printState)
@@ -746,12 +753,10 @@ void Core::Run(bool printState)
 
 bool Core::Step(bool printState)
 {
+	
 		
-	if(!A_stall && !F_stall)			
-	{				
-		DB = RAM[PC+1];  // index of env var we need to fetch
+	if(!F_stall)
 		FA = E;
-	}
 	
 	short PCPlusOne = PC + 1;	
 	//Current Env
@@ -760,10 +765,8 @@ bool Core::Step(bool printState)
 	//Current Frame Address 
 	short FA_frame = FA & FRAME_MASK;
 	char FA_cell = FA & CELL_MASK;
-	
-	
+
 	char inst = RAM[PC];
-	
 	
 	if(RAM_R && !RAM_W) 
 	{
@@ -779,31 +782,64 @@ bool Core::Step(bool printState)
 	arg_TOS &= 0x1F;
 	ret_TOS &= 0x1F;
 
-	
-	if(printState)
-	{
-		printf("A = %X \t argS = %X \t retS = %X \t [E] = %X \n", A, argS[arg_TOS], retS[ret_TOS], F[FA_cell]);
-		printf("argTOS = %i \t retTOS = %i \t E = %i \n", arg_TOS, ret_TOS, E);
-		std::cout << "\n";
-		PrintInst(&RAM[PC], PC);		
-	}
-
-	
+	//setup a fetched frame
 	//a value we couldnt write to F untill we loaded it from ram
 	if(!RAM_R && late_write_F)
 	{
+		if(newFrame)
+		{
+			N = F[0] & F_LINK_MASK;
+			F[0] = E & F_LINK_MASK;
+			newFrame = false;
+		}
+		FA++;
+		E = FA;		
+		FA_frame = FA & FRAME_MASK;
+		FA_cell = FA & CELL_MASK;
 		F[FA_cell] = late_write_val;
 		late_write_F = false;
 	}
+
+	if(!A_stall && !F_stall)			
+	{		
+		DB = RAM[PC+1];  // index of env var we need to fetch		
+	}
+
+	
+	if(printState)
+	{
+		printf("A=%i  A.e=%i  A.c=%i \t argS=%i  argS.e=%i  argS.c=%i \n", A, (A & A_ENV_MASK)>>A_ENV_SHIFT , A & A_CODE_MASK, argS[arg_TOS], (argS[arg_TOS] & A_ENV_MASK)>>A_ENV_SHIFT, argS[arg_TOS] & A_CODE_MASK);
+		printf("retS=%i  retS.e=%i  retS.c=%i \n", retS[ret_TOS], (retS[ret_TOS] & A_ENV_MASK)>>A_ENV_SHIFT, (retS[ret_TOS] & A_CODE_MASK));
+		printf("E=%i  E_cell=%i  N=%i  DB=%i \n", E, FA_cell, N, DB);
+		printf("F = [cnt = %i link = %i, %i, %i, %i, %i, %i, %i, %i] \n", (F[0] & F_CNT_MASK)>>F_CNT_SHIFT, F[0] & F_LINK_MASK, F[1], F[2], F[3], F[4], F[5], F[6], F[7]);
+		
+		std::cout << "\n";
+		if(F_stall) 
+			std::cout << "F_stall \n";
+		else if(A_stall) 
+			std::cout << "A_stall \n";
+		else	
+			PrintInst(&RAM[PC], PC);		
+	}
+
+
+
+
 	
 	//stall to load a full 4byte immedate
 	if(loadWord)
 	{
-		A = *((int*)(&RAM[PC]));
-		PC = PC+4;
+		char op = inst & OP_MASK;
+		A = *((int*)(&RAM[PC+1]));
+		if(op == LDIP)//PUSH
+		{
+			arg_TOS = (arg_TOS + 1) & 0x1F;
+			argS[arg_TOS] = A;										
+		}
+		PC = PC+5;
 		loadWord = false;
 	}
-	else
+	else if(!F_stall)
 	{
 		char op = inst & OP_MASK;
 		switch(op)
@@ -817,28 +853,24 @@ bool Core::Step(bool printState)
 				char cnt = inst & DATA_CNT_MASK;
 				switch(cnt)
 				{
-				case 0:
-					loadWord = true;
-					PC = PCPlusOne;
-					break;
-				case 1:
-					//A = ((int)(RAM[PC+1] << 24) >> 24);
-					A = (unsigned char)RAM[PC+1];
+				case 0:					
+					A = RAM[PC+1];
 					PC = PC+2;
 					break;			
-				case 2:
-					//A = ((int)(RAM[PC+1] << 16)|((int)(RAM[PC+2] << 24)) >> 16);
-					A = ((unsigned char)RAM[PC+1] | ((unsigned char)RAM[PC+2]<<8));
+				case 1:					
+					A = (RAM[PC+1] | (RAM[PC+2]<<8));
 					PC = PC+3;
 					break;
-				case 3:
-					//A = ((int)(RAM[PC+1]<<8)|(int)(RAM[PC+2]<<16)|((int)(RAM[PC+3]<<24))>>8);
-					A = ((unsigned char)RAM[PC+1] | ((unsigned char)RAM[PC+2]<<8) | ((unsigned char)RAM[PC+3]<<16));
+				case 2:					
+					A = (RAM[PC+1] | (RAM[PC+2]<<8) | (RAM[PC+3]<<16));
 					PC = PC+4;
+					break;
+				case 3:
+					loadWord = true;
 					break;
 				}
 
-				if(op == LDIP)//PUSH
+				if(op == LDIP && cnt != 3)//PUSH
 				{
 					arg_TOS = (arg_TOS + 1) & 0x1F;
 					argS[arg_TOS] = A;										
@@ -847,12 +879,13 @@ bool Core::Step(bool printState)
 				break;				
 			}
 			case CLOS://////////////////////////////////////////////////////////////////////////
-				A = (E << A_ENV_SHIFT) | RAM[PC+1] | (RAM[PC+2]<<8);
+				A = (E << A_ENV_SHIFT) | (RAM[PC+1]) | (RAM[PC+2]<<8);
+				F[0] = F[0] + F_CNT_INC;//refcnt+
 				PC = PC + 3;
 				break;	
 			case IF://////////////////////////////////////////////////////////////////////////
 				if(A)
-					PC = RAM[PC+1] | (RAM[PC+2]<<8);
+					PC = (RAM[PC+1]) | (RAM[PC+2]<<8);
 				else
 					PC = PC + 3;
 				break;
@@ -877,9 +910,10 @@ bool Core::Step(bool printState)
 					{
 						memcpy((void*)(&RAM[(FA & FRAME_MASK)<<2]), (void*)F, 32); 						
 						RAM_W = true;
+						F_stall = true;
 					}
 					RAM_R = true;
-					A_stall = true;
+					A_stall = true;					
 					FA = F[0] & F_LINK_MASK; // Set the next frame to jump to
 					DB = DB - FA_cell; 
 				}
@@ -893,6 +927,14 @@ bool Core::Step(bool printState)
 						arg_TOS = (arg_TOS + 1) & 0x1F;
 						argS[arg_TOS] = A;
 					}
+					//we are done, load the current frame
+					if(FA != E)
+					{
+						FA = E;
+						F_stall = true;
+						RAM_R = true;
+					}
+
 				}
 				
 				break;	
@@ -902,15 +944,20 @@ bool Core::Step(bool printState)
 				if(op == APP)
 				{
 					ret_TOS = (ret_TOS + 1) & 0x1F;
-					retS[ret_TOS] = (E << 16) | PCPlusOne;					
+					retS[ret_TOS] = (E << 16) | PCPlusOne;
+					NewFrame(argS[arg_TOS], false);
 				}
-				PC = A & A_CODE_MASK;								
-				E = N;
-				E++;
-				memcpy((void*)(&RAM[(FA & FRAME_MASK)<<2]), (void*)F, 32);
-				RAM_W = true;
-				F[0] = (A & A_ENV_MASK) >> A_ENV_SHIFT;	
-				F[E & CELL_MASK] = argS[arg_TOS];
+				else //grab an argument off stack and add to env 
+				{					
+					if((E & CELL_MASK) == 7)//need to get the next available frame
+						NewFrame(argS[arg_TOS]);
+					else//still space in this frame
+					{
+						E++;
+						F[E & CELL_MASK] = argS[arg_TOS];						
+					}
+				}					
+				PC = A & A_CODE_MASK;				
 				arg_TOS--;							
 				break;				
 			case PUSH:
@@ -939,40 +986,44 @@ bool Core::Step(bool printState)
 				}
 				else //grab an argument off stack and add to env 
 				{					
-					if((E & CELL_MASK) == 7)
+					if((E & CELL_MASK) == 7)//need to get the next available frame
+						NewFrame(argS[arg_TOS]);
+					else//still space in this frame
 					{
-						memcpy((void*)(&RAM[(FA & FRAME_MASK)<<2]), (void*)F, 32);;//write
-						RAM_W = true;
-						F[0] = F[0] | E & F_LINK_MASK;
-						E = N;						
+						E++;
+						F[E & CELL_MASK] = argS[arg_TOS];
+						PC = PCPlusOne;
 					}
-					E++;
-					F[E & CELL_MASK] = argS[arg_TOS];
-					PC = PCPlusOne;
 				}
 				arg_TOS--;
 				break;
 			case RETC:
+			{
 				//if there are no refs to the current clos, we dont need to save
-				if((F[0] & F_CNT_MASK) == 0) 
+				//add this frame to the head of the avail chain
+				bool saveThisFrame = true;
+				if((F[0] & F_CNT_MASK) == 0) /// CHECK if nothing in E, (E_cell == 0)? I think we still might need to keep it
 				{
+					F[0] = N;
 					N = E_frame;
-				}
-				else//otherwise save back to ram
-				{
-					memcpy((void*)(&RAM[(FA & FRAME_MASK)<<2]), (void*)F, 32);//write
-					RAM_W = true;
-				}
+					saveThisFrame = false;
+
+					//Stats
+					disposedFrames++;
+				}			
 
 				if(argS[arg_TOS] == MARK_VAL)
 				{
+					if(saveThisFrame)
+					{
+						memcpy((void*)(&RAM[(FA & FRAME_MASK)<<2]), (void*)F, 32);//write
+						RAM_W = true;
+						F_stall = true;
+					}
 					PC = retS[ret_TOS] & A_CODE_MASK;
 					E = (retS[ret_TOS] & A_ENV_MASK) >> A_ENV_SHIFT;
 					ret_TOS--;
-					FA = E;
-					memcpy((void*)(&RAM[(FA & FRAME_MASK)<<2]), (void*)F, 32);//write
-					RAM_W = true;
-					F_stall = true;
+					FA = E;					
 					RAM_R = true;
 				}
 				else
@@ -980,47 +1031,49 @@ bool Core::Step(bool printState)
 					//pop clos
 					PC = A & A_CODE_MASK;
 					E = (A & A_ENV_MASK) >> A_ENV_SHIFT;
-					if((E & CELL_MASK) == 7)
-					{
-						F[0] = F[0] | E & F_LINK_MASK;
-						E = N;						
-						E++;
-						F[E & CELL_MASK] = argS[arg_TOS];
-					}
-					else
-					{
-						E++;
-						FA = E;					
-						F_stall = true;
-						RAM_R = true;
-						late_write_val = argS[arg_TOS];//should be able to use arg_TOS - 1 here instead
-						late_write_F = true; 
-					}
-				}				
+					NewFrame(argS[arg_TOS]);
+					//if((E & CELL_MASK) == 7)
+					//	NewFrame(argS[arg_TOS]);
+					//else
+					//{
+					//	memcpy((void*)(&RAM[(FA & FRAME_MASK)<<2]), (void*)F, 32);//write
+					//	RAM_W = true;
+					//	E++;
+					//	FA = E;					
+					//	F_stall = true;
+					//	RAM_R = true;
+					//	late_write_val = argS[arg_TOS];//should be able to use arg_TOS - 1 here instead
+					//	late_write_F = true; 
+					//}
+				}	
+
+
 				arg_TOS--;
 				break;
+			}
 			case LET:
-				if((E & CELL_MASK) == 7)
+				if((E & CELL_MASK) == 7)				
+					NewFrame(A);				
+				else
 				{
-					F[0] = F[0] | E & F_LINK_MASK;
-					E = N;										
+					E++;
+					F[E & CELL_MASK] = A;
 				}
-				E++;
-				F[E & CELL_MASK] = A;
 				PC = PCPlusOne;
 				break;
 			case ELET:
+				//check if we need to pop back to prior frame? 
 				E--;
 				PC = PCPlusOne;
 				break;
 			case TEMP:
 				if((E & CELL_MASK) == 7)
+					NewFrame(MARK_VAL);
+				else
 				{
-					F[0] = F[0] | E & F_LINK_MASK;
-					E = N;										
+					E++;
+					F[E & CELL_MASK] = MARK_VAL;
 				}
-				E++;
-				F[E & CELL_MASK] = MARK_VAL;
 				PC = PCPlusOne;
 				break;
 			case UPDT:
@@ -1138,6 +1191,22 @@ bool Core::Step(bool printState)
 }
 
 
+void	Core::NewFrame(int firstParam, bool incRef)
+{
+	if(incRef)
+		F[0] = F[0] + F_CNT_INC;//refcnt+
+	memcpy((void*)(&RAM[(FA & FRAME_MASK)<<2]), (void*)F, 32);//write
+	RAM_W = true;						
+	FA = N;						
+	F_stall = true;
+	RAM_R = true;
+	late_write_F = true;
+	late_write_val = firstParam;
+	newFrame = true;
+
+	//////Stats
+	newFrames++;
+}
 
 
 
