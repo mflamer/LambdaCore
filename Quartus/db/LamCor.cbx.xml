@@ -1,0 +1,14 @@
+<?xml version="1.0" ?>
+<LOG_ROOT>
+	<PROJECT NAME="LamCor">
+		<CBX_INST_ENTRY INSTANCE_NAME="|top|j1:inst|altsyncram:ram_rtl_1" CBX_FILE_NAME="altsyncram_36r1.tdf"/>
+		<CBX_INST_ENTRY INSTANCE_NAME="|top|ramblock:inst1|altsyncram:altsyncram_component" CBX_FILE_NAME="altsyncram_qem2.tdf"/>
+		<CBX_INST_ENTRY INSTANCE_NAME="|top|ramblock:inst3|altsyncram:altsyncram_component" CBX_FILE_NAME="altsyncram_qem2.tdf"/>
+		<CBX_INST_ENTRY INSTANCE_NAME="|top|j1:inst|regfile_16_16_r_w:rstack|altsyncram:store_rtl_0" CBX_FILE_NAME="altsyncram_4ka1.tdf"/>
+		<CBX_INST_ENTRY INSTANCE_NAME="|top|ramblock:inst4|altsyncram:altsyncram_component" CBX_FILE_NAME="altsyncram_qem2.tdf"/>
+		<CBX_INST_ENTRY INSTANCE_NAME="|top|ramblock:inst5|altsyncram:altsyncram_component" CBX_FILE_NAME="altsyncram_qem2.tdf"/>
+		<CBX_INST_ENTRY INSTANCE_NAME="|top|ram32_mux:inst7|lpm_mux:LPM_MUX_component" CBX_FILE_NAME="mux_glc.tdf"/>
+		<CBX_INST_ENTRY INSTANCE_NAME="|top|j1:inst|altsyncram:ram_rtl_0" CBX_FILE_NAME="altsyncram_36r1.tdf"/>
+		<CBX_INST_ENTRY INSTANCE_NAME="|top|j1:inst|regfile_16_16_r_w:dstack|altsyncram:store_rtl_0" CBX_FILE_NAME="altsyncram_4ka1.tdf"/>
+	</PROJECT>
+</LOG_ROOT>
