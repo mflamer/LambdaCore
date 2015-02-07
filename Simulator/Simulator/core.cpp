@@ -257,515 +257,16 @@ void Core::Run(bool printState)
 	std::cout << "DisposedFrames = " << disposedFrames << "\n";
 }
 
- //bool Core::Step(bool printState)
-//{
-//	int ALU = 0;
-//	int _A = A;		
-//	unsigned short PCPlusOne = PC + 1;
-//	
-//	unsigned short _N = N;	
-//	/*int _F[FRAMESIZE];
-//	std::copy(F, F + 8, _F);*/
-//
-//	unsigned char _arg_TOS = arg_TOS;
-//	unsigned char _ret_TOS = ret_TOS;
-//
-//	char _DB = 0;
-//	
-//	//Current Env
-//	unsigned short E_frame = E & FRAME_MASK;
-//	unsigned char  E_cell = E & CELL_MASK;
-//
-//	//Current Frame Address 
-//	unsigned char FA_cell = FA & CELL_MASK;
-//	unsigned char FA_frame = FA & FRAME_MASK;
-//	
-//	unsigned int inst;
-//	bool RAM_W = false;
-//	
-//	/////////////////////////////////////////////////////////
-//	//Decode
-//
-//	
-//	inst = RAM[PC];
-//	char pattern = (inst & PTRN_MASK)>>PTRN_SHIFT;
-//
-//
-//	if(printState)
-//	{
-//		printf("A = %X \t argS = %X \t retS = %X \t [E] = %X \n", A, argS[arg_TOS], retS[ret_TOS], F[FA_cell]);
-//		printf("argTOS = %i \t retTOS = %i \t E = %i \n", arg_TOS, ret_TOS, E);
-//		std::cout << "\n";
-//		PrintInst(inst, PC);		
-//	}
-//
-//
-//
-//	if(!A_stall && !F_stall)
-//	{				
-//		DB = inst & DB_MASK; // index of env var we need to fetch
-//	}
-//	
-//	//pre compute in case we need to access a var from env
-//	//DB = DB - FA_cell; // this would be the next DB if we need the next frame 
-//	char Fidx = FA_cell - DB; // This is the index of the slot in F we are seeking 	
-//	
-//
-//
-//	if(link)
-//	{
-//		F[0] = F[0] | (link & F_LINK_MASK);
-//		//F[0] = F[0] + F_CNT_INC;
-//		link = 0;
-//	}
-//
-//	if(!RAM_R && late_write_F)
-//	{
-//		F[FA_cell] = late_write_val;
-//		late_write_F = false;
-//	}
-//	
-//	
-//	if(inst == END)
-//		return false;
-//	else if(pattern == PAT_LDI)// LDI
-//	{
-//		_A = inst & LIT_MASK;
-//		_PC = PCPlusOne;
-//	}
-//	else 
-//	{
-//		if(pattern == PAT_ALU)
-//		{
-//			if(!A_stall && !F_stall)
-//			{
-//				// ALU //////////////////////////////////////////////////////////////////////
-//				switch((inst & ALU_MASK)>>ALU_SHIFT)
-//				{
-//				case 0:// A
-//					ALU = A;
-//					break;
-//				case 1:// argS
-//					ALU = argS[arg_TOS];
-//					break;
-//				case 2:// ADD
-//					ALU = A + argS[arg_TOS];
-//					break;
-//				case 3:// SUB
-//					ALU = A - argS[arg_TOS];
-//					break;
-//				case 4:// MUL
-//					ALU = A * argS[arg_TOS];
-//					break;
-//				case 5:// AND
-//					ALU = A & argS[arg_TOS];
-//					break;
-//				case 6:// OR
-//					ALU = A | argS[arg_TOS];
-//					break;
-//				case 7:// NOT
-//					ALU = ~A;
-//					break;
-//				case 8:// XOR
-//					ALU = A ^ argS[arg_TOS];
-//					break;
-//				case 9:// XNOR
-//					ALU = ~(A ^ argS[arg_TOS]);
-//					break;
-//				case 10:// ASHR
-//					ALU = (int)A >> argS[arg_TOS];
-//					break;
-//				case 11:// LSHR
-//					ALU = (unsigned int)A >> argS[arg_TOS];
-//					break;
-//				case 12:// LSHL
-//					ALU = A << argS[arg_TOS];
-//					break;
-//				case 13:// EQ
-//					ALU = A == argS[arg_TOS];
-//					break;
-//				case 14:// NE
-//					ALU = A != argS[arg_TOS];
-//					break;
-//				case 15:// GT
-//					ALU = A > argS[arg_TOS];
-//					break;		
-//				case 16:// LT
-//					ALU = A < argS[arg_TOS];
-//					break;		
-//				case 17:// GTE
-//					ALU = A >= argS[arg_TOS];
-//					break;		
-//				case 18:// LTE
-//					ALU = A <= argS[arg_TOS];
-//					break;		
-//				case 19:// ABV
-//					ALU = ((unsigned int)A) > ((unsigned int)argS[arg_TOS]);
-//					break;		
-//				case 20:// BEL
-//					ALU = ((unsigned int)A) < ((unsigned int)argS[arg_TOS]);
-//					break;		
-//				case 31:
-//					ALU = MARK_VAL;
-//					break;
-//				default:
-//					std::cout << "Bad instruction encoding in ALU \n";
-//					break;
-//				}////////////////////////////////////////////////////////////////////////////	
-//			}
-//		}
-//
-//		
-//		switch(pattern)
-//		{
-//		case PAT_JMPCLOS:
-//		case PAT_ALU:				
-//			
-//			if(!F_stall && !RAM_R)
-//			{
-//				// _A /////////////////////////////////////////////////////////////////////
-//				switch((inst & A_MASK)>>A_SHIFT)
-//				{
-//				case 0:// no change
-//					_A = ALU;
-//					break;
-//				case 1:// [E-n] -> A
-//					if(Fidx <= 0)// need to fetch the next frame down the chain
-//					{
-//						if(!A_stall)
-//							RAM_W = true;
-//						RAM_R = true;
-//						A_stall = true;
-//						_FA = F[0] & F_LINK_MASK; // Set the next frame to jump to
-//						DB = DB - FA_cell; 
-//					}
-//					else
-//					{
-//						_A = F[Fidx];	
-//						A_stall = false;
-//					}
-//					break;
-//				case 2:// pc -> A.c, E -> A.e
-//					_A = argS[arg_TOS] == MARK_VAL ? (E << A_ENV_SHIFT) | PCPlusOne : A;
-//					F[0] = F[0] + F_CNT_INC;
-//					break;
-//				case 3:
-//					_A = inst & LIT_MASK;
-//					break;
-//				case 4:
-//					_A = (E << A_ENV_SHIFT) | (inst & A_CODE_MASK);	
-//					F[0] = F[0] + F_CNT_INC;
-//					break;
-//				case 5:
-//					_A = argS[arg_TOS] == MARK_VAL ? retS[ret_TOS] : A;
-//					break;
-//				case 6:
-//					_A = inst & A_CODE_MASK;
-//					break;
-//				case 7:
-//					_A = ALU;//E_frame;
-//					break;			
-//				default:
-//					std::cout << "Bad instruction encoding in _A \n";
-//					break;
-//				}/////////////////////////////////////////////////////////////////////////////
-//			}
-//
-//			if(!A_stall && !F_stall)
-//			{
-//
-//				// _PC ///////////////////////////////////////////////////////////////////////
-//				switch((inst & PC_MASK) >> PC_SHIFT)
-//				{
-//				case 0:// inc above	
-//					_PC = PCPlusOne;
-//					break;
-//				case 1://
-//					_PC = _A & A_CODE_MASK;
-//					break;
-//				case 2://
-//					_PC = argS[arg_TOS] == MARK_VAL ? retS[ret_TOS] & A_CODE_MASK : PCPlusOne;
-//					break;
-//				case 3:
-//					_PC = argS[arg_TOS] == MARK_VAL ? retS[ret_TOS] & A_CODE_MASK : _A & A_CODE_MASK;
-//					break;	
-//				case 4:
-//					_PC = A != 0 ? inst & A_CODE_MASK : PCPlusOne;
-//					break;
-//				case 5:
-//					_PC = retS[ret_TOS] & A_CODE_MASK;
-//					break;
-//				case 6:
-//					_PC = inst & A_CODE_MASK;
-//					break;
-//				case 7:
-//					_PC = PCPlusOne & (inst & DB_MASK);//??
-//					break;
-//				default:
-//					std::cout << "Bad instruction encoding in _PC \n";
-//					break;
-//				}//////////////////////////////////////////////////////////////////////////////					
-//				
-//
-//				if(inst & ALLOC_MASK)// _A -> N
-//				{
-//					_N = _A;
-//				}
-//				else if((N & FRAME_MASK) <= E_frame) 
-//					_N = (E_frame) + 8; 
-//
-//
-//
-//			}
-//			break;
-//		
-//		}
-//
-//		if(pattern == PAT_ALU)
-//		{
-//			if(!A_stall && !F_stall)
-//			{			
-//				// _E ///////////////////////////////////////////////////////////////////////
-//				switch((inst & E_MASK) >> E_SHIFT)
-//				{
-//				case 0:// inc above		
-//					_E = E;
-//					break;
-//				case 1://					
-//					_E = N;
-//					RAM_W = true;					
-//					link = (_A & A_ENV_MASK) >> A_ENV_SHIFT;
-//					break;
-//				case 2://
-//					if(argS[arg_TOS] == MARK_VAL)
-//					{
-//						_E = (retS[ret_TOS] & A_ENV_MASK) >> A_ENV_SHIFT;
-//						_FA = _E;
-//						RAM_W = true;
-//						F_stall = true;
-//						RAM_R = true;
-//					}
-//					else 
-//						_E = E;
-//					break;
-//				case 3:
-//					if(argS[arg_TOS] == MARK_VAL)
-//					{
-//						_E = (retS[ret_TOS] & A_ENV_MASK) >> A_ENV_SHIFT;
-//						_FA = _E;
-//						RAM_W = true;
-//						F_stall = true;
-//						RAM_R = true;
-//					}
-//					else
-//					{
-//						_E = (_A & A_ENV_MASK) >> A_ENV_SHIFT;
-//						_FA = _E;
-//						RAM_W = true;
-//						F_stall = true;
-//						RAM_R = true;
-//						late_write_val = argS[arg_TOS];//should be able to use arg_TOS - 1 here instead
-//						late_write_F = true; 
-//
-//						if(F[0] & F_CNT_MASK == 0) //drop current env
-//							_N = E_frame;
-//					}
-//					break;			
-//				default:
-//					std::cout << "Bad instruction encoding in _E \n";
-//					break;
-//				}////////////////////////////////////////////////////////////////////////////				
-//			
-//			}
-//
-//			if(RAM_W) 
-//			{
-//				std::copy(F, F + 8, RAM + (FA & FRAME_MASK));
-//			}
-//			
-//				
-//			if(!A_stall && (!RAM_R || !RAM_W))
-//			{			
-//				// E inc /////////////////////////////////////////////////////////////////////
-//				switch((inst & E_INC_MASK) >> E_INC_SHIFT)
-//				{
-//				case 0:// no change				
-//					break;
-//				case 1://
-//					if((_E & CELL_MASK) == 7)
-//					{						
-//						RAM_W = true;
-//						_E = N;
-//						link = E;
-//					}
-//					else _E = _E + 1;
-//					break;
-//				case 2: // conditionaly inc E 
-//					if(argS[arg_TOS] != MARK_VAL)
-//					{
-//						if((_E & CELL_MASK) == 7)
-//						{							
-//							RAM_W = true;							
-//							_E = N;							
-//							link = E;
-//						}
-//						_E = _E + 1;
-//					}
-//					break;
-//				case 3:
-//					_E = _E - 1;
-//					break;			
-//				default:
-//					std::cout << "Bad instruction encoding in retSinc \n";
-//					break;
-//				}//////////////////////////////////////////////////////////////////////////////
-//			}
-//
-//			if(!A_stall && !F_stall)
-//			{
-//
-//				// F ////////////////////////////////////////////////////////////////////////
-//				switch((inst & F_MASK) >> F_SHIFT)
-//				{
-//				case 0:// no change				
-//					break;
-//				case 1://
-//					if(argS[arg_TOS] != MARK_VAL) 
-//						F[_E & CELL_MASK] = argS[arg_TOS];
-//					break;
-//				case 2://
-//					F[_E & CELL_MASK] = _A;
-//					break;
-//				case 3:
-//					//
-//					break;			
-//				default:
-//					std::cout << "Bad instruction encoding in F \n";
-//					break;
-//				}/////////////////////////////////////////////////////////////////////////////
-//			}
-//		}
-//		
-//
-//			if(!A_stall && !(RAM_R && RAM_W))
-//			{
-//				// argS inc ///////////////////////////////////////////////////////////////////////
-//				switch((inst & ARGS_INC_MASK) >> ARGS_INC_SHIFT)
-//				{
-//				case 0:// no change				
-//					_arg_TOS = arg_TOS;
-//					break;
-//				case 1://
-//					_arg_TOS = arg_TOS + 1;
-//					break;
-//				case 2:	
-//					//
-//					break;
-//				case 3:
-//					_arg_TOS = arg_TOS -1;
-//					break;			
-//				default:
-//					std::cout << "Bad instruction encoding in argSinc \n";
-//					break;
-//				}//////////////////////////////////////////////////////////////////////////////////
-//				_arg_TOS &= 0x1F; //we need the stacks to wrap
-//	
-//
-//				if(inst & ARGS_MASK)// _A -> argS
-//				{
-//					argS[_arg_TOS] = _A;
-//				}
-//
-//				// retS inc ///////////////////////////////////////////////////////////////////////
-//				switch((inst & RETS_INC_MASK) >> RETS_INC_SHIFT)
-//				{
-//				case 0:// no change	
-//					_ret_TOS = ret_TOS;
-//					break;
-//				case 1://
-//					_ret_TOS = ret_TOS + 1;
-//					break;
-//				case 2:	
-//					if(argS[arg_TOS] == MARK_VAL)
-//						_ret_TOS = ret_TOS - 1;
-//					break;
-//				case 3:
-//					_ret_TOS = ret_TOS -1;
-//					break;			
-//				default:
-//					std::cout << "Bad instruction encoding in retSinc \n";
-//					break;
-//				}//////////////////////////////////////////////////////////////////////////////////
-//				_ret_TOS &= 0x1F; //we need the stacks to wrap
-//
-//				// retS ///////////////////////////////////////////////////////////////////////
-//				switch((inst & RETS_MASK) >> RETS_SHIFT)
-//				{
-//				case 0:// no change				
-//					break;
-//				case 1://
-//					retS[_ret_TOS] = (E << A_ENV_SHIFT) | PCPlusOne;
-//					break;
-//				case 2://
-//					retS[_ret_TOS] = PCPlusOne;
-//					break;
-//				case 3:
-//					retS[_ret_TOS] = _A;
-//					break;			
-//				default:
-//					std::cout << "Bad instruction encoding in _retS \n";
-//					break;
-//				}///////////////////////////////////////////////////////////////////////////////
-//
-//			}
-//		
-//		}
-//	
-//
-//
-//	
-//	if(RAM_R && ! RAM_W) 
-//	{
-//		std::copy(RAM + (_FA & FRAME_MASK), RAM + (_FA & FRAME_MASK) + 8, F);
-//		FA = _FA;
-//		RAM_R = false;	
-//		F_stall = false;
-//	}
-//
-//	if(!A_stall && !F_stall)			
-//	{
-//		FA = _E;
-//		A = _A;
-//		PC = _PC;
-//		E = _E;	
-//		N = _N;
-//		arg_TOS = _arg_TOS;
-//		ret_TOS = _ret_TOS;
-//	}
-//
-//	
-//
-//
-//
-//
-//	return true;
-//}
+
 
 bool Core::Step(bool printState)
 {
 	
 		
-	if(!F_stall)
+	if(!F_stall && !A_stall)
 		FA = E;
 	
-	short PCPlusOne = PC + 1;	
-	//Current Env
-	short E_frame = E & FRAME_MASK;
-	char  E_cell = E & CELL_MASK;
-	//Current Frame Address 
-	short FA_frame = FA & FRAME_MASK;
-	char FA_cell = FA & CELL_MASK;
-
+	short PCPlusOne = PC + 1;
 	char inst = RAM[PC];
 	
 	if(RAM_R && !RAM_W) 
@@ -793,10 +294,8 @@ bool Core::Step(bool printState)
 			newFrame = false;
 		}
 		FA++;
-		E = FA;		
-		FA_frame = FA & FRAME_MASK;
-		FA_cell = FA & CELL_MASK;
-		F[FA_cell] = late_write_val;
+		E = FA;
+		F[FA & CELL_MASK] = late_write_val;
 		late_write_F = false;
 	}
 
@@ -805,12 +304,19 @@ bool Core::Step(bool printState)
 		DB = RAM[PC+1];  // index of env var we need to fetch		
 	}
 
+	//Current Env
+	short E_frame = E & FRAME_MASK;
+	char  E_cell = E & CELL_MASK;
+	//Current Frame Address 
+	short FA_frame = FA & FRAME_MASK;
+	char FA_cell = FA & CELL_MASK;
+
 	
 	if(printState)
 	{
-		printf("A=%i  A.e=%i  A.c=%i \t argS=%i  argS.e=%i  argS.c=%i \n", A, (A & A_ENV_MASK)>>A_ENV_SHIFT , A & A_CODE_MASK, argS[arg_TOS], (argS[arg_TOS] & A_ENV_MASK)>>A_ENV_SHIFT, argS[arg_TOS] & A_CODE_MASK);
-		printf("retS=%i  retS.e=%i  retS.c=%i \n", retS[ret_TOS], (retS[ret_TOS] & A_ENV_MASK)>>A_ENV_SHIFT, (retS[ret_TOS] & A_CODE_MASK));
-		printf("E=%i  E_cell=%i  N=%i  DB=%i \n", E, FA_cell, N, DB);
+		printf("A=%i  A.e=%i  A.c=%i \t argS_TOS=%i  argS=%i  argS.e=%i  argS.c=%i \n", A, (A & A_ENV_MASK)>>A_ENV_SHIFT , A & A_CODE_MASK, arg_TOS, argS[arg_TOS], (argS[arg_TOS] & A_ENV_MASK)>>A_ENV_SHIFT, argS[arg_TOS] & A_CODE_MASK);
+		printf("argS_TOS=%i retS=%i  retS.e=%i  retS.c=%i \n", ret_TOS, retS[ret_TOS], (retS[ret_TOS] & A_ENV_MASK)>>A_ENV_SHIFT, (retS[ret_TOS] & A_CODE_MASK));
+		printf("FA=%i  E=%i  E_cell=%i  N=%i  DB=%i \n", FA, E, E_cell, N, DB);
 		printf("F = [cnt = %i link = %i, %i, %i, %i, %i, %i, %i, %i] \n", (F[0] & F_CNT_MASK)>>F_CNT_SHIFT, F[0] & F_LINK_MASK, F[1], F[2], F[3], F[4], F[5], F[6], F[7]);
 		
 		std::cout << "\n";
@@ -903,7 +409,7 @@ bool Core::Step(bool printState)
 				break;
 			case ACC:
 			case ACCP:{
-				char Fidx = FA_cell - DB; // This is the index of the slot in F we are seeking
+				char Fidx = (FA & CELL_MASK) - DB; // This is the index of the slot in F we are seeking
 				if(Fidx <= 0)// need to fetch the next frame down the chain
 				{
 					if(!A_stall)
@@ -913,9 +419,9 @@ bool Core::Step(bool printState)
 						F_stall = true;
 					}
 					RAM_R = true;
-					A_stall = true;					
-					FA = F[0] & F_LINK_MASK; // Set the next frame to jump to
-					DB = DB - FA_cell; 
+					A_stall = true;	
+					DB = DB - (FA & CELL_MASK);
+					FA = F[0] & F_LINK_MASK; // Set the next frame to jump to					 
 				}
 				else
 				{
@@ -1007,6 +513,9 @@ bool Core::Step(bool printState)
 					F[0] = N;
 					N = E_frame;
 					saveThisFrame = false;
+					memcpy((void*)(&RAM[(FA & FRAME_MASK)<<2]), (void*)F, 32);//write
+					RAM_W = true;
+					F_stall = true;
 
 					//Stats
 					disposedFrames++;
@@ -1032,21 +541,7 @@ bool Core::Step(bool printState)
 					PC = A & A_CODE_MASK;
 					E = (A & A_ENV_MASK) >> A_ENV_SHIFT;
 					NewFrame(argS[arg_TOS]);
-					//if((E & CELL_MASK) == 7)
-					//	NewFrame(argS[arg_TOS]);
-					//else
-					//{
-					//	memcpy((void*)(&RAM[(FA & FRAME_MASK)<<2]), (void*)F, 32);//write
-					//	RAM_W = true;
-					//	E++;
-					//	FA = E;					
-					//	F_stall = true;
-					//	RAM_R = true;
-					//	late_write_val = argS[arg_TOS];//should be able to use arg_TOS - 1 here instead
-					//	late_write_F = true; 
-					//}
 				}	
-
 
 				arg_TOS--;
 				break;
@@ -1063,7 +558,34 @@ bool Core::Step(bool printState)
 				break;
 			case ELET:
 				//check if we need to pop back to prior frame? 
-				E--;
+				if(E_cell == 1)
+				{
+					E = F[0] & F_LINK_MASK;
+					bool saveThisFrame = true;
+					if((F[0] & F_CNT_MASK) == 0) /// CHECK if nothing in E, (E_cell == 0)? I think we still might need to keep it
+					{
+						F[0] = N;
+						N = E_frame;
+						saveThisFrame = false;
+
+						//Stats
+						disposedFrames++;
+					}
+
+					if(saveThisFrame)
+					{
+						memcpy((void*)(&RAM[(FA & FRAME_MASK)<<2]), (void*)F, 32);//write
+						RAM_W = true;
+						F_stall = true;				
+					}
+					
+					FA = E;					
+					RAM_R = true;
+				}
+				else
+				{
+					E--;
+				}
 				PC = PCPlusOne;
 				break;
 			case TEMP:

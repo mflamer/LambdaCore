@@ -20,7 +20,9 @@ endmodule
 
 module j1(
    input clk,
-   input resetq
+   input resetq,
+	output reg [7:0] d_out,
+	output reg d_out_start
    );
   parameter FIRMWARE = "<firmware>";
   parameter INIT = "<hexfile>";
@@ -48,18 +50,28 @@ module j1(
   reg reboot;
 
   wire [8:0] pc_plus_1 = pc + 1;
+  
+ 
 
   reg [15:0] ram[0:511] /* verilator public_flat */;
   initial
-    $readmemh({FIRMWARE, INIT}, ram);
+		$readmemh("test.hex", ram);
+	 
 
   reg [15:0] insn;
   reg [15:0] mem_din;
   always @(posedge clk) begin
     insn <= ram[insn_addr];
-    // mem_din <= ram[mem_addr[8:0]];
+    mem_din <= ram[mem_addr[8:0]];
     if (mem_wr)
-      ram[mem_addr[8:0]] <= mem_dout;
+		if(mem_addr[14]) begin
+			d_out <= mem_dout[8:0];
+			d_out_start <= 1;
+		end else 			
+			ram[mem_addr[8:0]] <= mem_dout;
+	 else 
+		d_out_start <= 0;		
+			
   end
 
   // The D and R stacks

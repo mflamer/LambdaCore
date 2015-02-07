@@ -8,34 +8,6 @@
 #define RETSTACKSIZE 32
 #define FRAMESIZE 8
 
-
-//#define LIT_MASK		0x7FFFFFFF
-//#define PTRN_MASK		0xC0000000
-//#define PTRN_SHIFT		30
-//#define A_MASK			0x38000000
-//#define A_SHIFT			27
-//#define ARGS_MASK		0x04000000
-//#define ARGS_SHIFT		26
-//#define ALLOC_MASK		0x02000000
-//#define ALLOC_SHIFT		25
-//#define PC_MASK			0x01C00000
-//#define PC_SHIFT		22
-//#define RETS_MASK		0x00300000
-//#define RETS_SHIFT		20
-//#define ARGS_INC_MASK	0x000C0000
-//#define ARGS_INC_SHIFT  18
-//#define RETS_INC_MASK	0x00030000
-//#define RETS_INC_SHIFT  16
-//#define ALU_MASK		0x0000F800
-//#define ALU_SHIFT		11
-//#define E_MASK			0x00000600
-//#define E_SHIFT			9
-//#define F_MASK			0x00000180
-//#define F_SHIFT			7
-//#define E_INC_MASK		0x00000060
-//#define E_INC_SHIFT		5
-//#define DB_MASK			0x0000001F
-
 #define FRAME_MASK		0xFFFFFFF8
 #define CELL_MASK		0x00000007
 #define A_ENV_MASK		0xFFFF0000

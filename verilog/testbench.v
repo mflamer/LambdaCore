@@ -7,7 +7,7 @@ module testbench();
   reg resetq;
   integer t;
 
-  top #(.FIRMWARE("build/firmware/")) dut(.clk(clk), .resetq(resetq));
+  top #dut(.clk(clk), .resetq(resetq));
 
   initial begin
     clk = 1;

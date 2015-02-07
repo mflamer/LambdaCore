@@ -18,7 +18,27 @@
 
 (def timesFour
     (lam x (twice double x)))
-               
+
+(def lets
+    (lam x 
+        (let x0 0
+        (let x1 1
+        (let x2 2
+        (let x3 3
+        (let x4 4
+        (let x5 5
+        (let x6 6
+        (let x7 7
+        (let x8 8
+            (+ x0(+ x1(+ x2(+ x3(+ x4(+ x5(+ x6(+ x7(- x8 x))))))))))))))))))))
+
+(def fib 
+    (lam x 
+        (if x 
+            (if (== x 1) 
+                1 
+                (+ (fib (- x 1)) (fib (- x 2)))) 
+            0))) 
 
 (def tests (lam x 
     (let x0 0
@@ -30,10 +50,12 @@
     (let t_and (==(& 65535 43690)43690)
     (let t_or  (==(| 21845 43690)65535)
     (let t_not (==(~ 65535)-65536) 
+    (let t_lets (==(lets 10)26)    
     (let t_times4 (==(timesFour 5) 20)  
-    (let t_cntDn (==(cntdn (double (half (plus5 1)))) 0)  
-        (+ t_add(+ t_sub(+ t_mul(+ t_and(+ t_or(+ t_not(+ t_times4 t_cntDn)
-            ))))))))))))))))))) 
+    (let t_cntDn (==(cntdn (double (half (plus5 1)))) 0)
+    (let t_fib (== (fib 5)5)                                  
+        (+ t_add(+ t_sub(+ t_mul(+ t_and(+ t_or(+ t_not(+ t_lets(+ t_times4(+ t_cntDn t_fib)))))))))
+        ))))))))))))))) 
 
-(== (tests 0) 8)
+(== (tests 0) 10)
 

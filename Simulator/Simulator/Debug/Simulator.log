@@ -1,22 +1,10 @@
-﻿Build started 10/18/2014 9:43:14 AM.
-     1>Project "C:\Users\Mark Flamer\Dropbox\LambdaCore\Simulator\Simulator\Simulator.vcxproj" on node 2 (Build target(s)).
-     1>ClCompile:
-         C:\Program Files (x86)\Microsoft Visual Studio 11.0\VC\bin\CL.exe /c /ZI /nologo /W3 /WX- /Od /Oy- /D _MBCS /Gm /EHsc /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Fo"Debug\\" /Fd"Debug\vc110.pdb" /Gd /TP /analyze- /errorReport:prompt core.cpp
-         core.cpp
-     1>c:\program files (x86)\microsoft visual studio 11.0\vc\include\xutility(2176): warning C4996: 'std::_Copy_impl': Function call with parameters that may be unsafe - this call relies on the caller to check that the passed values are correct. To disable this warning, use -D_SCL_SECURE_NO_WARNINGS. See documentation on how to use Visual C++ 'Checked Iterators'
-                 c:\program files (x86)\microsoft visual studio 11.0\vc\include\xutility(2157) : see declaration of 'std::_Copy_impl'
-                 c:\users\mark flamer\dropbox\lambdacore\simulator\simulator\core.cpp(270) : see reference to function template instantiation '_OutIt std::copy<int*,int*>(_InIt,_InIt,_OutIt)' being compiled
-                 with
-                 [
-                     _OutIt=int *,
-                     _InIt=int *
-                 ]
-       Link:
-         C:\Program Files (x86)\Microsoft Visual Studio 11.0\VC\bin\link.exe /ERRORREPORT:PROMPT /OUT:"C:\Users\Mark Flamer\Dropbox\LambdaCore\Simulator\Debug\Simulator.exe" /INCREMENTAL /NOLOGO kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"C:\Users\Mark Flamer\Dropbox\LambdaCore\Simulator\Debug\Simulator.pdb" /TLBID:1 /DYNAMICBASE /NXCOMPAT /IMPLIB:"C:\Users\Mark Flamer\Dropbox\LambdaCore\Simulator\Debug\Simulator.lib" /MACHINE:X86 Debug\core.obj
-         Debug\main.obj
-         Simulator.vcxproj -> C:\Users\Mark Flamer\Dropbox\LambdaCore\Simulator\Debug\Simulator.exe
-     1>Done Building Project "C:\Users\Mark Flamer\Dropbox\LambdaCore\Simulator\Simulator\Simulator.vcxproj" (Build target(s)).
+﻿Build started 1/30/2015 4:58:41 PM.
+     1>Project "C:\Users\mflamer\Dropbox\LambdaCore\Simulator\Simulator\Simulator.vcxproj" on node 2 (Build target(s)).
+     1>C:\Program Files (x86)\MSBuild\Microsoft.Cpp\v4.0\V110\Microsoft.CppBuild.targets(346,5): warning MSB8004: Output Directory does not end with a trailing slash.  This build instance will add the slash as it is required to allow proper evaluation of the Output Directory.
+     1>Link:
+         Simulator.vcxproj -> C:\Users\mflamer\Dropbox\LambdaCore\Simulator\Simulator\..\..\LamCor\src\Simulator.exe
+     1>Done Building Project "C:\Users\mflamer\Dropbox\LambdaCore\Simulator\Simulator\Simulator.vcxproj" (Build target(s)).
 
 Build succeeded.
 
-Time Elapsed 00:00:01.30
+Time Elapsed 00:00:00.04

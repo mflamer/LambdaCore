@@ -112,6 +112,7 @@ packOpt ((CLOS a):is) = (CLOS (packOpt a)):(packOpt is)
 packOpt ((IF a):is) = (IF (packOpt a)):(packOpt is)  
 packOpt ((LDI x):PUSH:is) = (LDIP x):(packOpt is) 
 packOpt ((ACC x):PUSH:is) = (ACCP x):(packOpt is) 
+packOpt (RETC:RETC:is) = RETC:(packOpt is) 
 packOpt (i:is) = i:(packOpt is)
 packOpt [] = []
 
@@ -179,7 +180,7 @@ compile e@(DB_APP True es) = compileT e
 compile (DB_LAM dbl) = [CLOS $ compileT dbl ++ [RETC]] 
 compile (DB_LET v e) = (compile v) ++ LET:(compile e) ++ [ELET]  
 compile (DB_LETREC v e) = TEMP:(compile v) ++ UPDT:(compile e) ++ [ELET] 
-compile (DB_IF b t e) = (compile b) ++ [IF $ compile t] ++ (compile e) 
+compile (DB_IF b t e) = (compile b) ++ [IF ((compile t) ++ [RETC])]  ++ (compile e) ++ [RETC] 
 compile (DB_CALL a) = [CALL a]
 compile (DB_JUMP a) = [JUMP a]
 compile (DB_PRIM_1 i e) = (compile e) ++ [PRIM i]
