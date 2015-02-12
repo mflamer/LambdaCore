@@ -10,7 +10,7 @@ import qualified Data.ByteString.Lazy as B
 
 main::IO()
 main = do 
-   src <- readFile "lam.src"
+   src <- readFile "tst.src"
    let ins = compileSrc src
        bin = encode ins   
    B.writeFile "lam.bin" bin

@@ -1,3 +1,19 @@
+#### GDB #########################
+# ft32-elf-objdump -D lcvm.bin > disassembly.txt
+# FT900Prog.exe -f lcvm.bin -o 
+# python "C:\FT90x Toolchain\programmer\gdb_bridge.py" live
+# 
+# open another shell
+# ft32-elf-gdb lcvm.bin
+# target remote localhost:9998
+#
+# set disassemble-next-line on
+# break *0x## addr
+# info registers (all registers)
+# info registers $r0
+
+
+
 
 
         .equ    PM_UNLOCK,      0x1fc80
@@ -195,16 +211,21 @@ stophere:
 
 ###### Memory Map ####################################################
 ## 0x00010000: IO
-## 0x0000FEFF: Ret Stack (64 words)
-## 0x0000FE7F: Arg Stack (32 words)
+## 0x0000FFFF: Ret Stack (64 words)
+## 0x0000FEFF: Arg Stack (32 words)
 ## 0x00008000: Unmanaged Heap 
 ## 0x00000000: Managed Heap (1024 frames)
 
 ###### Closure Encoding ############################################## 
-## | 14b env ptr (/4) | 18b code ptr |  -- on A 
+## | 14b env ptr (/4) | 18b code ptr |
         
-
-#######   Registers   #######################################################
+###### Env ############_#############################################                                                    
+#           |0|###    |N|       | |       | |       | |-------]0x8000                                                          
+#                E     N                                           
+#--------------------------------------------------------------------
+# GetFrame  |0|###<---|-|       | |       | |       | |-------]0x8000     
+#                      E         N
+####### Registers ###################################################
 #define     A   $r0
 #---------------------Frame 0 
 #define     F00 $r1
@@ -225,7 +246,7 @@ stophere:
 #define     F16 $r15
 #define     F17 $r16
 #---------------------State
-#define     FCM $r17   
+#define     FM  $r17   
 #define     D   $r18        
 #define     N   $r19    
 #define     E   $r20
@@ -246,17 +267,8 @@ stophere:
 
 
 mark_val:   .long 0x80000000
-frame_mask: .long 0xFFFFFFE0   
-
-init:
-    lpm     MK,     mark_val
-    ldk     C0,     0
-    ldk     D,      0
-    ldk     R,      0x0040
-    ldk     D,      0x0020
-    lpm     FM,     frame_mask
-
-
+frame_mask:  .long 0xFFFFFFE0
+#define CELL_MASK    0x1F
     
 .macro LDIS x   #20b constant
     ldk     A, \x
@@ -269,8 +281,7 @@ init:
 
 .macro CLOS a 
    ashl    A, E, 16 
-   ldk     S0, (\a>>2)
-   ashl    S0, S0, 2
+   ldk     S0, \a
    or      A, A, S0
 .endm     
    
@@ -280,83 +291,78 @@ IF:
     ldi     A, E, 0
 .endm    
 
+.macro ACC n
+    ldk   $r28, (\n<<2)
+    call  _ACC
+.endm
 
-# ldk   $r28, n
-# call  ACC
-ACC:
-    and     S0, E, FM
+_ACC:
+    and     S0, E, FM       # E frame idx
     sub     S1, E, $r28
 findfrm:    
     sub     $r28, S0, S1
     jmpx    31, $r28, 1, thisframe
     ldi     S1, S0, 0
-    and     S0, S1, FM     
+    and     S0, S1, FM
     sub     S1, S1, $r28
     jmp     findfrm
 thisframe:
     ldi     A, S1, 0   
-    return
+    return                               
 
+.macro GET_FRAME
+    exi     E, N, 0             # swap E and [N] in next frames header
+    SWAP    E, N                # swap N & E
+.endm
 
-
-###### Env ########################################################## 
-#                                                  _  
-# |       | |       | |       | |       | |       |N|    ###| ]0x8000                                                          
-#                                                  N     E
-#--------------------------------------------------------------------
-# |       | |       | |       | |       | |       |E|    ###| ]0x8000     
-#                                                  N     N
-
-.macro NEXT_FRAME
-    exi     E, N, 0             # swap E and N' in next frames header
-    SWAP    E, N                # swap N & E'
+.macro DROP_FRAME
+    exi     N, E, 0             # swap N and [E] in next frames header
+    SWAP    E, N                # swap N & E
 .endm
 
 .macro _APPT
     bextu   E, A, (14<<5)|18    # get E' from clos in A            
-    NEXT_FRAME
+    GET_FRAME
     add     E, E, 4             # inc E 
-    ldi     E, D, 0             # grab first arg
-    sub     D, D, 4             # dec D    
+    ldi     S0, D, 0            # grab first arg
+    sti     E, 0, S0
+    add     D, D, 4             # inc D    
     jmpi    A   
-.endm        
-
+.endm
 
 APP:    # call to
     push    E                   # push E on R
 APPT:   # jump to 
     _APPT
 
-
-.macro PUSH
-    add     D, D, 4
+.macro PUSH_D
+    sub     D, D, 4
     sti     D, 0, A
 .endm 
 
-.macro POP
-    sub     D, D, 4
+.macro POP_D    
     ldi     A, D, 0
+    add     D, D, 4
 .endm
 
 .macro MARK
-    add     D, D, 4
+    sub     D, D, 4
     sti     D, 0, MK
 .endm
 
 .macro PUSH_E r
-    and     S1, E, FM
-    cmp     S1, 0x1F
+    and     S1, E, CELL_MASK
+    cmp     S1, 0x1C
     jmpc    nz, 1f
-    NEXT_FRAME
+    GET_FRAME
 1:
     add     E, E, 4
     sti     E, 0, \r
-.endm
-       
+.endm       
 
 GRAB:
     ldi     S0, D, 0
-    sub     D, D, 4     
+    add     D, D, 4     
     cmp     S0, MK
     jmpc    nz, notgrabmk
     # build clos
@@ -371,7 +377,7 @@ notgrabmk:
 
 RET:    # jump to
     ldi     S0, D, 0   
-    sub     D, D, 4  
+    add     D, D, 4  
     cmp     S0, MK
     jmpc    nz, notretmk
     pop     E
@@ -381,29 +387,163 @@ notretmk:
 
 LET:
     PUSH_E A
+    return
 
 ELET:
+    and     S1, E, CELL_MASK
+    cmp     S1, 0x4
+    jmpc    nz, 1f
+    DROP_FRAME
+    return
+1:    
+    sub     E, E, 4
+    return
 
-TEMP:
+.macro TEMP
+    PUSH_E MK
+.endm    
+    
+.macro UPDT
+    sti     E, 0, A
+.endm
 
-UPDT:
 
 END:
+    jmp END
 
+#### Arith #####
+ADD:
+    ldi S0, D, 0
+    add D, D, 4
+    add A, A, S0    
+    return
+
+SUB:
+    ldi S0, D, 0
+    add D, D, 4
+    sub A, A, S0    
+    return    
    
+
+#######   Test   #####################################################
+
+test:
+#     MARK
+#     LDIS 5
+#     PUSH_D
+#     CLOS c0
+#     call APP
+#     jmp END
+# c0:    
+#     ACC0
+#     PUSH_D
+#     ACC0
+#     ldi S0, D, 0
+#     add D, D, 4
+#     add A, A, S0
+#     jmp RET
+
+    MARK 
+    MARK 
+    LDIS 10
+    PUSH_D
+    CLOS c0
+    call APP 
+    PUSH_D 
+    CLOS c1
+    call APP 
+    jmp END 
+c0:    
+    LDIS 0
+    call LET 
+    LDIS 1
+    call LET 
+    LDIS 2
+    call LET 
+    LDIS 3
+    call LET 
+    LDIS 4
+    call LET 
+    LDIS 5
+    call LET 
+    LDIS 6
+    call LET 
+    LDIS 7
+    call LET 
+    LDIS 8
+    call LET 
+    ACC 9
+    PUSH_D
+    ACC0
+    call SUB 
+    PUSH_D 
+    ACC 1
+    call ADD 
+    PUSH_D 
+    ACC 2
+    call ADD 
+    PUSH_D 
+    ACC 3
+    call ADD 
+    PUSH_D 
+    ACC 4
+    call ADD 
+    PUSH_D 
+    ACC 5
+    call ADD 
+    PUSH_D 
+    ACC 6
+    call ADD 
+    PUSH_D 
+    ACC 7
+    call ADD 
+    PUSH_D 
+    ACC 8
+    call ADD 
+    jmp RET
+c1:    
+    ACC0
+    PUSH_D
+    ACC0
+    call ADD 
+    jmp RET     
 
 #######   BOOT   #####################################################
 
 
 codestart:
 
-        ldk     $r1,0x80
-        sta.b   sys_regmsc0cfg_b3,$r1
+    ldk     $r1,0x80
+    sta.b   sys_regmsc0cfg_b3,$r1
 
-        # Enable the RTC as soon as possible
-        # Write 1 to RTC_EN in RTC_CCR
-        ldk     $r1,(1 << 2)
-        sta     0x1028c,$r1
+    # Enable the RTC as soon as possible
+    # Write 1 to RTC_EN in RTC_CCR
+    ldk     $r1,(1 << 2)
+    sta     0x1028c,$r1
+
+    #init VM
+    lpm     MK,     mark_val
+    lpm     FM,     frame_mask
+    ldk     C0,     0
+    ldk     R,      0xFFFF
+    ldk     D,      0xFEFF
+
+    #setup frame chain
+    ldk     N, 0x20
+    ldk     S1, 0x8000
+1:        
+    add     S0, N, 32
+    sti     N, 0, S0
+    move    N, S0
+    cmp     N, S1
+    jmpc    lt, 1b  
+
+    ldk     N, 0x20
+    ldk     S0, 0
+    ldk     S1, 0
+
+    #run 
+    jmp test
 
 
 
