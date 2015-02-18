@@ -12,8 +12,8 @@ module LamCor.Parser
 import LamCor.Language
 
 import Data.Char
-import Data.Word
 import Data.Int
+import Data.List
 import qualified Data.Map as M
 
 type Token = String
@@ -111,7 +111,7 @@ expr (t@(c:cs):ts)
    | M.member t unaryOps = prim1 (t:ts)
    | isNumber c || c == '-' = ([Const x],ts) 
    | otherwise  = ([Var t],ts)
-   where x = (fromIntegral (read t :: Int32)) :: Word32
+   where x = (read t :: Int)
 
 prim1 :: [Token] -> ([Expr],[Token])
 prim1 (t:ts) = case ts of
@@ -165,26 +165,20 @@ takeDefs (e@(Def s _):es,es') = takeDefs (es,e:es')
 takeDefs (es,es') = (es,es')  
 
 
-compileTop :: (SymbTable,[Word8],Word32) -> [Expr] -> (SymbTable,[Word8],Word32)
-compileTop env [] = env
-compileTop (symt,ins,pc) ((Def s e):es) = compileTop (symt'',def++ins,pc') es where
-   (symt',ins',pc') = compileExpr (symt,[],pc-3) e
-   symt''           = M.insertWith (\n o -> o) s clo symt' 
-   (def,clo)        = splitAt ((length ins')-3) ins' 
-compileTop (symt,ins,pc) (e:es) = compileTop (compileExpr (symt,ins,pc) e) es 
+compileTop :: ([String], Int) -> [Expr] -> ([String], Int)
+compileTop (ins,pc) [] = (ins,pc)
+compileTop (ins,pc) ((Def s e):es) = compileTop ((init ins')++(label:ins),pc') es where
+   label = (s++":")
+   (ins',pc')  = compileExpr e pc
+compileTop (ins,pc) (e:es) = compileTop (ins'++ins,pc') es where
+   (ins',pc')  = compileExpr e pc 
     
 
-compileExpr :: (SymbTable,[Word8],Word32)-> Expr -> (SymbTable,[Word8],Word32)
-compileExpr (symt,ins,pc) e = (symt,ins',pc') where
-   (ins',pc') = genOPs (packOpt (compile $ tailCallOpt True $ exprToDB symt e)) (ins,pc)
-
-compileExprT :: (SymbTable,[Word8],Word32)-> Expr -> (SymbTable,[Word8],Word32)
-compileExprT (symt,ins,pc) e = (symt,ins',pc') where
-   (ins',pc') = genOPs (packOpt (compileT $ exprToDB symt e)) (ins,pc)   
+compileExpr :: Expr -> Int -> ([String], Int)
+compileExpr e pc = genOPs (packOpt (compile $ tailCallOpt True $ exprToDB e)) ([],pc)
 
 
-compileSrc :: String -> [Word8]
-compileSrc src = reverse ins' where
-   (symt,ins,cnt) = compileTop (M.empty,[],0) exprs
-   (symt',ins',cnt') = compileTop (symt,[],0) exprs
+compileSrc :: String -> String
+compileSrc src = concat (intersperse "\n" (reverse ins)) where
+   (ins,pc) = compileTop ([],0) exprs
    exprs = findMain $ parse src

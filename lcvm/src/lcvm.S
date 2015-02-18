@@ -192,13 +192,13 @@ stophere:
 
 
 # not
-.macro      not rd,r1
+.macro      _not rd,r1
     xor     \rd,\r1,-1
 .endm
 
 # negate
-.macro      neg x
-    not     \x, \x
+.macro      _neg x
+    _not     \x, \x
     add     \x, \x, 1
 .endm   
 
@@ -320,26 +320,46 @@ thisframe:
     SWAP    E, N                # swap N & E
 .endm
 
-.macro _APPT
-    bextu   E, A, (14<<5)|18    # get E' from clos in A            
+_APP:    # call to
+    push    E                   # push E on R
+    bextu   E, A, (14<<5)|18    # get E' from clos in A 
+    ashl    E, E, 2                    
     GET_FRAME
     add     E, E, 4             # inc E 
     ldi     S0, D, 0            # grab first arg
     sti     E, 0, S0
     add     D, D, 4             # inc D    
-    jmpi    A   
+    jmpi    A
+
+_APPT:   # jump to 
+    bextu   E, A, (14<<5)|18    # get E' from clos in A  
+    ashl    E, E, 2  
+    and     S1, E, CELL_MASK
+    cmp     S1, 0x1C
+    jmpc    nz, 1f
+    GET_FRAME
+1:   
+    add     E, E, 4             # inc E 
+    ldi     S0, D, 0            # grab first arg
+    sti     E, 0, S0
+    add     D, D, 4             # inc D    
+    jmpi    A
+
+.macro APP
+    call _APP    
 .endm
 
-APP:    # call to
-    push    E                   # push E on R
-APPT:   # jump to 
-    _APPT
+.macro APPT
+    jmp _APPT
+.endm    
 
+#define PUSH PUSH_D
 .macro PUSH_D
     sub     D, D, 4
     sti     D, 0, A
 .endm 
 
+#define POP POP_D
 .macro POP_D    
     ldi     A, D, 0
     add     D, D, 4
@@ -360,7 +380,7 @@ APPT:   # jump to
     sti     E, 0, \r
 .endm       
 
-GRAB:
+_GRAB:
     ldi     S0, D, 0
     add     D, D, 4     
     cmp     S0, MK
@@ -375,19 +395,31 @@ notgrabmk:
     PUSH_E S0
     return
 
-RET:    # jump to
+.macro GRAB
+    call _GRAB
+.endm    
+
+_RET:    # jump to
     ldi     S0, D, 0   
     add     D, D, 4  
     cmp     S0, MK
-    jmpc    nz, notretmk
+    jmpc    nz, notretmk   
     pop     E
     return
 notretmk:    
-    _APPT
+    jmp _APPT
 
-LET:
+.macro RET
+    jmp _RET
+.endm
+
+_LET:
     PUSH_E A
     return
+
+.macro LET
+    call _LET
+.endm    
 
 ELET:
     and     S1, E, CELL_MASK
@@ -399,6 +431,10 @@ ELET:
     sub     E, E, 4
     return
 
+.macro ELET
+    call _ELET
+.endm    
+
 .macro TEMP
     PUSH_E MK
 .endm    
@@ -407,106 +443,89 @@ ELET:
     sti     E, 0, A
 .endm
 
+.macro IF a
+    cmp     A, C0
+    jmpc    nz, \a
+.endm    
 
-END:
-    jmp END
+
+_END:
+    jmp _END
+
+.macro END
+    jmp _END
+.endm    
 
 #### Arith #####
-ADD:
-    ldi S0, D, 0
-    add D, D, 4
-    add A, A, S0    
+#define ADD call _ADD
+_ADD:
+    ldi     S0, D, 0
+    add     D, D, 4
+    add     A, A, S0    
     return
 
-SUB:
-    ldi S0, D, 0
-    add D, D, 4
-    sub A, A, S0    
+#define SUB call _SUB
+_SUB:
+    ldi     S0, D, 0
+    add     D, D, 4
+    sub     A, A, S0    
     return    
    
+#define EQ call _EQ
+_EQ:
+    ldi     S0, D, 0
+    add     D, D, 4
+    cmp     A, S0
+    bexts   A, $r30, (1<<5|0) 
+    return 
+
+#define MUL call _MUL
+_MUL:
+    ldi     S0, D, 0
+    add     D, D, 4
+    mul     A, A, S0    
+    return         
+
+#define AND call _AND
+_AND:
+    ldi     S0, D, 0
+    add     D, D, 4
+    and     A, A, S0    
+    return 
+
+#define OR call _OR
+_OR:
+    ldi     S0, D, 0
+    add     D, D, 4
+    or      A, A, S0    
+    return  
+
+.macro NOT
+    _not A, A
+.endm
+
+.macro NEG
+    _neg A
+.endm            
+
+#define ASHL call _ASHL
+_ASHL:
+    ldi S0, D, 0
+    add D, D, 4
+    ashl A, A, S0    
+    return  
+
+#define ASHR call _ASHR
+_ASHR:
+    ldi S0, D, 0
+    add D, D, 4
+    ashr A, A, S0    
+    return                   
 
 #######   Test   #####################################################
 
 test:
-#     MARK
-#     LDIS 5
-#     PUSH_D
-#     CLOS c0
-#     call APP
-#     jmp END
-# c0:    
-#     ACC0
-#     PUSH_D
-#     ACC0
-#     ldi S0, D, 0
-#     add D, D, 4
-#     add A, A, S0
-#     jmp RET
-
-    MARK 
-    MARK 
-    LDIS 10
-    PUSH_D
-    CLOS c0
-    call APP 
-    PUSH_D 
-    CLOS c1
-    call APP 
-    jmp END 
-c0:    
-    LDIS 0
-    call LET 
-    LDIS 1
-    call LET 
-    LDIS 2
-    call LET 
-    LDIS 3
-    call LET 
-    LDIS 4
-    call LET 
-    LDIS 5
-    call LET 
-    LDIS 6
-    call LET 
-    LDIS 7
-    call LET 
-    LDIS 8
-    call LET 
-    ACC 9
-    PUSH_D
-    ACC0
-    call SUB 
-    PUSH_D 
-    ACC 1
-    call ADD 
-    PUSH_D 
-    ACC 2
-    call ADD 
-    PUSH_D 
-    ACC 3
-    call ADD 
-    PUSH_D 
-    ACC 4
-    call ADD 
-    PUSH_D 
-    ACC 5
-    call ADD 
-    PUSH_D 
-    ACC 6
-    call ADD 
-    PUSH_D 
-    ACC 7
-    call ADD 
-    PUSH_D 
-    ACC 8
-    call ADD 
-    jmp RET
-c1:    
-    ACC0
-    PUSH_D
-    ACC0
-    call ADD 
-    jmp RET     
+#include "lam.S"
 
 #######   BOOT   #####################################################
 
