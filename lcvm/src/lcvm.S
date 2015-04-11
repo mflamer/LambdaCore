@@ -1,4 +1,9 @@
 #### GDB #########################
+# - Build
+# make clean
+# make
+#
+# - Load Ram (just use gui now)
 # ft32-elf-objdump -D lcvm.bin > disassembly.txt
 # FT900Prog.exe -f lcvm.bin -o 
 # python "C:\FT90x Toolchain\programmer\gdb_bridge.py" live
@@ -209,14 +214,17 @@ stophere:
     xor     \a,\a,\b 
 .endm         
 
-###### Memory Map ####################################################
+###### Memory Map ###################################################
 ## 0x00010000: IO
 ## 0x0000FFFF: Ret Stack (64 words)
 ## 0x0000FEFF: Arg Stack (32 words)
 ## 0x00008000: Unmanaged Heap 
 ## 0x00000000: Managed Heap (1024 frames)
 
-###### Closure Encoding ############################################## 
+###### Frame Header #################################################
+## | 7b CFlags | 9b ref cnt | 16b link ptr |
+
+###### Closure Encoding #############################################
 ## | 14b env ptr (/4) | 18b code ptr |
         
 ###### Env ############_#############################################                                                    
@@ -277,16 +285,31 @@ frame_mask:  .long 0xFFFFFFE0
 .macro LDIL x  #(could switch to lpm? this is only 30b) 
    ldk      A, (\x >> 10)
    ldl      A, A,(\x & 0x3ff)
-.endm     
+.endm
+
+.macro INC_H
+   and    S0, E, FM
+   ldi    S1, S0, 0
+   ldk    r29, 0x10000  
+   add    S1, S1, r29
+   sti    S0, 0, S1
+.endm         
+
+.macro DEC_H
+   and    S0, E, FM
+   ldi    S1, S0, 0
+   ldk    r29, 0x10000  
+   sub    S1, S1, r29
+   sti    S0, 0, S1
+.endm
 
 .macro CLOS a 
    ashl    A, E, 16 
    ldk     S0, \a
    or      A, A, S0
+
 .endm     
    
-IF:
-
 .macro ACC0
     ldi     A, E, 0
 .endm    
