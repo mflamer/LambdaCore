@@ -31,6 +31,9 @@ data Expr = Const Int
           ------------------------------
           | Prim_1 POp Expr
           | Prim_2 POp Expr Expr 
+          ------------------------------
+          | SwapF Expr
+          -- | PopF Expr
           -- | Inst Int        
           deriving (Eq, Show)
 
@@ -46,27 +49,46 @@ data DBExpr = DB_CONST Int
             | DB_SET Symb Int
             | DB_CALL Int
             | DB_JUMP Int
-            | DB_I Int
+            | DB_E Int
+            | DB_R0 Int
+            | DB_R1 Int
             | DB_PRIM_1 POp DBExpr
             | DB_PRIM_2 POp DBExpr DBExpr
-            | DB_INST String        
+            | DB_INST String   
+            | DB_SWAP_F DBExpr
+            -- | DB_POP_F DBExpr     
             deriving (Eq, Show)
 
-data SF a = FF | SS a
-    deriving (Eq, Show)
+type Env = (Bool, [Symb], [Symb], [Symb])  
 
+pushSymb :: Symb -> Env -> Expr -> (Env, Expr) 
+pushSymb s (rotd, f0, f1, chain) ex
+  | length f0 < 7 = ((rotd, s:f0, f1, chain), ex)
+  | f1 == []      = ((not rotd, s:[], f0, chain), ex)
+  | otherwise     = ((not rotd, s:[], f0, f1++chain), SwapF ex)
+
+-- popSymb :: Env -> Expr -> (Env, Expr)    
+-- popSymb (rotd, [], [], s:chain) ex = ((rotd, [], [], chain), ex)
+-- popSymb (rotd, s:[], [], chain) ex = ((rotd, [], [], chain), PopF ex)--load a frame?
+-- popSymb (rotd, s:f0, [], chain) ex = ((rotd, f0, [], chain), ex)
+-- popSymb (rotd, s:[], f1, chain) ex = ((not rotd, f1, [], chain), ex)  
 
 exprToDB :: Expr -> DBExpr
-exprToDB expr = db_translate [] expr where
+exprToDB expr = db_translate (False, [], [], []) expr where
        db_translate _ (Const n) = DB_CONST n       
-       db_translate env (Lam v e) = DB_LAM e' where
-           e' = db_translate (v:env) e
-       db_translate env (Let v e0 e1) = DB_LET e0' e1' where
-           e0' = db_translate (v:env) e0
-           e1' = db_translate (v:env) e1
-       db_translate env (LetRec v e0 e1) = DB_LETREC e0' e1' where
-           e0' = db_translate (v:env) e0     
-           e1' = db_translate (v:env) e1   
+       db_translate env (Lam v ex) = DB_LAM ex'' where
+           ex'' = db_translate env' ex'
+           (env', ex') = pushSymb v env ex 
+       db_translate env (Let v e0 e1) = DB_LET e0'' e1'' where
+           e0'' = db_translate env0' e0'
+           (env0', e0') = pushSymb v env e0
+           e1'' = db_translate env1' e1'
+           (env1', e1') = pushSymb v env e1
+       db_translate env (LetRec v e0 e1) = DB_LETREC e0'' e1'' where
+           e0'' = db_translate env0' e0'
+           (env0', e0') = pushSymb v env e0
+           e1'' = db_translate env1' e1'
+           (env1', e1') = pushSymb v env e1   
        db_translate env (If b t e) = DB_IF b' t' e' where
            b' = db_translate env b
            t' = db_translate env t
@@ -77,17 +99,39 @@ exprToDB expr = db_translate [] expr where
            e' = db_translate env e
        db_translate env (Prim_2 i e0 e1) = DB_PRIM_2 i e0' e1' where
            e0' = db_translate env e0
-           e1' = db_translate env e1         
-       db_translate env (Var v)
-        = case (find v env) of
-            SS n -> DB_I n
-            FF -> DB_INST v
-        where 
-            find v [] = FF
-            find v (v':rest) | v == v' = SS 0
-                             | otherwise = case find v rest of
-                                            FF -> FF
-                                            SS n -> SS (n+1)
+           e1' = db_translate env e1
+       db_translate env (SwapF e) = DB_SWAP_F e' where
+           e' = db_translate env e             
+       db_translate env (Var s) = findSymbInEnv s env            
+        
+
+data SF = FF | SS Int
+    deriving (Eq, Show)
+
+findSymbInEnv :: Symb -> Env -> DBExpr
+findSymbInEnv s (True, r0, r1, chain) = case (findSymb s r0) of
+   FF -> case (findSymb s r1) of
+      FF -> case (findSymb s chain) of
+         FF   -> DB_INST s
+         SS n -> DB_E n     
+      SS n -> DB_R1 n   
+   SS n -> DB_R0 n
+findSymbInEnv s (False, r0, r1, chain) = case (findSymb s r0) of
+   FF -> case (findSymb s r1) of
+      FF -> case (findSymb s chain) of
+         FF   -> DB_INST s
+         SS n -> DB_E n     
+      SS n -> DB_R0 n   
+   SS n -> DB_R1 n      
+
+findSymb :: Symb -> [Symb] -> SF 
+findSymb s [] = FF
+findSymb s (s':rest) | s == s' = SS 0
+                     | otherwise = case findSymb s rest of
+                                FF -> FF
+                                SS n -> SS (n+1)
+
+
 
 
 tailCallOpt :: Bool -> DBExpr -> DBExpr
@@ -160,7 +204,7 @@ data POp = Add
 compile :: DBExpr -> [Inst]
 compile (DB_INST ins) = [INST ins] 
 compile (DB_CONST k) = [LDI k]
-compile (DB_I n) = [ACC n]
+compile (DB_E n) = [ACC n]
 compile (DB_APP False es) = MARK:es' ++ [APP] 
                                 where es' = intercalate [PUSH] $ map compile $ reverse es 
 compile e@(DB_APP True es) = compileT e                                                                      
